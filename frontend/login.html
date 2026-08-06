@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录 - 工具链平台</title>
+<link rel="icon" href="/ui/car.ico" type="image/x-icon">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.login-wrapper {
+  width: 100%;
+  max-width: 420px;
+}
+
+.login-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 40px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.login-logo {
+  font-size: 48px;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.login-header h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 6px;
+}
+
+.login-header p {
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+.form-group {
+  margin-bottom: 18px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.form-group label i {
+  margin-right: 6px;
+  color: #667eea;
+}
+
+.form-group input, .form-group select {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #1e293b;
+  background: #f8fafc;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+
+.form-group input:focus, .form-group select:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102,126,234,0.15);
+  background: #fff;
+}
+
+.login-error {
+  background: #fef2f2;
+  color: #dc2626;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 16px;
+  border: 1px solid #fecaca;
+}
+
+.login-btn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.login-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.login-btn:active {
+  transform: translateY(0);
+}
+
+.login-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.login-footer {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.register-link {
+  color: #667eea;
+  cursor: pointer;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.register-link:hover {
+  text-decoration: underline;
+}
+
+.form-switch {
+  text-align: center;
+  margin-top: 20px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.register-hint {
+  margin-top: 20px;
+  padding: 16px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.register-hint-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0369a1;
+  margin-bottom: 6px;
+}
+
+.register-hint p {
+  font-size: 13px;
+  color: #0c4a6e;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.register-hint strong {
+  color: #0284c7;
+}
+
+.hidden { display: none !important; }
+
+.password-requirements {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: -8px;
+  margin-bottom: 4px;
+}
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+</style>
+</head>
+<body>
+<div class="login-wrapper">
+  <div class="login-card">
+    <div class="login-header">
+      <span class="login-logo">🚀</span>
+      <h1>工具链平台</h1>
+      <p id="formSubtitle">请登录以继续</p>
+    </div>
+
+    <form id="loginForm">
+      <div class="form-group">
+        <label><i class="fa-solid fa-user"></i> 用户名 / 邮箱</label>
+        <input type="text" id="username" placeholder="请输入用户名或邮箱" required autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label><i class="fa-solid fa-lock"></i> 密码</label>
+        <input type="password" id="password" placeholder="请输入密码" required autocomplete="current-password">
+      </div>
+      <div id="loginError" class="login-error hidden"></div>
+      <button type="submit" class="login-btn" id="loginBtn">
+        <i class="fa-solid fa-right-to-bracket"></i> 登录
+      </button>
+    </form>
+
+    <form id="registerForm" class="hidden">
+      <div class="form-group">
+        <label><i class="fa-solid fa-envelope"></i> 企业邮箱</label>
+        <input type="email" id="regEmail" placeholder="如: n**g@boonray.com" required autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label><i class="fa-solid fa-id-card"></i> 真实姓名</label>
+        <input type="text" id="regDisplayName" placeholder="请输入您的真实姓名，如: 焦宁" required>
+      </div>
+      <div class="form-group">
+        <label><i class="fa-solid fa-lock"></i> 设置密码</label>
+        <input type="password" id="regPassword" placeholder="密码长度至少6位" required minlength="6">
+        <div class="password-requirements">建议使用大小写字母+数字+符号组合</div>
+      </div>
+      <div class="form-group">
+        <label><i class="fa-solid fa-lock"></i> 确认密码</label>
+        <input type="password" id="regPassword2" placeholder="请再次输入密码" required minlength="6">
+      </div>
+      <div class="form-group">
+        <label><i class="fa-solid fa-users"></i> 所属组</label>
+        <select id="regCompanyGroup" required>
+          <option value="">请选择您所在的组</option>
+          <option value="system">系统组</option>
+          <option value="cloud_platform">云端平台组</option>
+          <option value="perception">感知组</option>
+          <option value="control">规控组</option>
+          <option value="calibration">标定组</option>
+          <option value="map">地图组</option>
+          <option value="vehicle_platform">车端平台组</option>
+          <option value="hardware">智能硬件集成组</option>
+          <option value="simulation">仿真组</option>
+          <option value="quality">质量组</option>
+          <option value="tech_support">技术支持组</option>
+          <option value="pm">研发项目管理组</option>
+        </select>
+      </div>
+      <div id="regError" class="login-error hidden"></div>
+      <button type="submit" class="login-btn" id="regBtn">
+        <i class="fa-solid fa-user-plus"></i> 注册账号
+      </button>
+    </form>
+
+    <div class="form-switch" id="formSwitch">
+      还没有账号？<span class="register-link" id="showRegister">立即注册</span>
+    </div>
+
+    <div class="login-footer">Toolchain Platform v1.0</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  var API_BASE = '/api';
+  var isRegisterMode = false;
+
+  function $(sel) { return document.querySelector(sel); }
+
+  function showError(msg, isReg) {
+    var el = isReg ? $('#regError') : $('#loginError');
+    el.textContent = msg;
+    el.classList.remove('hidden');
+  }
+
+  function hideError(isReg) {
+    var el = isReg ? $('#regError') : $('#loginError');
+    el.classList.add('hidden');
+  }
+
+  function setLoginLoading(loading) {
+    var btn = $('#loginBtn');
+    if (loading) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> 登录中...';
+    } else {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> 登录';
+    }
+  }
+
+  function setRegLoading(loading) {
+    var btn = $('#regBtn');
+    if (loading) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> 注册中...';
+    } else {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> 注册账号';
+    }
+  }
+
+  function switchToRegister() {
+    isRegisterMode = true;
+    $('#loginForm').classList.add('hidden');
+    $('#registerForm').classList.remove('hidden');
+    $('#formSubtitle').textContent = '使用企业邮箱注册新账号';
+    $('#formSwitch').innerHTML = '已有账号？<span class="register-link" id="showLogin">返回登录</span>';
+    $('#showLogin').addEventListener('click', switchToLogin);
+    hideError(false);
+  }
+
+  function switchToLogin() {
+    isRegisterMode = false;
+    $('#registerForm').classList.add('hidden');
+    $('#loginForm').classList.remove('hidden');
+    $('#formSubtitle').textContent = '请登录以继续';
+    $('#formSwitch').innerHTML = '还没有账号？<span class="register-link" id="showRegister">立即注册</span>';
+    $('#showRegister').addEventListener('click', switchToRegister);
+    hideError(true);
+  }
+
+  function checkExistingToken() {
+    var token = localStorage.getItem('tcp_token');
+    var userStr = localStorage.getItem('tcp_user');
+    if (token && userStr) {
+      try {
+        var user = JSON.parse(userStr);
+        fetch(API_BASE + '/auth/me', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        }).then(function(res) {
+          if (res.ok) {
+            window.location.href = '/index.html';
+          } else {
+            localStorage.removeItem('tcp_token');
+            localStorage.removeItem('tcp_user');
+          }
+        }).catch(function() {});
+      } catch(e) {
+        localStorage.removeItem('tcp_token');
+        localStorage.removeItem('tcp_user');
+      }
+    }
+  }
+
+  function doLogin(username, password) {
+    hideError(false);
+    setLoginLoading(true);
+
+    fetch(API_BASE + '/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: username, password: password })
+    }).then(function(res) {
+      if (!res.ok) {
+        return res.json().then(function(err) {
+          throw new Error(err.detail || '登录失败');
+        });
+      }
+      return res.json();
+    }).then(function(result) {
+      localStorage.setItem('tcp_token', result.token);
+      localStorage.setItem('tcp_user', JSON.stringify(result.user));
+      window.location.href = '/index.html';
+    }).catch(function(err) {
+      showError(err.message || '登录失败，请检查用户名和密码', false);
+      setLoginLoading(false);
+    });
+  }
+
+  function doRegister(email, displayName, password, companyGroup) {
+    hideError(true);
+
+    if (!email.endsWith('@boonray.com')) {
+      showError('请使用 @boonray.com 结尾的企业邮箱注册', true);
+      return;
+    }
+    if (!displayName || displayName.trim().length < 2) {
+      showError('请填写您的真实姓名', true);
+      return;
+    }
+    if (password.length < 6) {
+      showError('密码长度至少6位', true);
+      return;
+    }
+    if (!companyGroup) {
+      showError('请选择您所在的组', true);
+      return;
+    }
+
+    setRegLoading(true);
+
+    fetch(API_BASE + '/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: email, password: password, display_name: displayName.trim(), company_group: companyGroup })
+    }).then(function(res) {
+      if (!res.ok) {
+        return res.json().then(function(err) {
+          throw new Error(err.detail || '注册失败');
+        });
+      }
+      return res.json();
+    }).then(function(result) {
+      localStorage.setItem('tcp_token', result.token);
+      localStorage.setItem('tcp_user', JSON.stringify(result.user));
+      window.location.href = '/index.html';
+    }).catch(function(err) {
+      showError(err.message || '注册失败，请稍后重试', true);
+      setRegLoading(false);
+    });
+  }
+
+  $('#showRegister').addEventListener('click', switchToRegister);
+
+  $('#loginForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var username = $('#username').value.trim();
+    var password = $('#password').value;
+    if (!username || !password) {
+      showError('请输入用户名和密码', false);
+      return;
+    }
+    doLogin(username, password);
+  });
+
+  $('#registerForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var email = $('#regEmail').value.trim().toLowerCase();
+    var displayName = $('#regDisplayName').value.trim();
+    var password = $('#regPassword').value;
+    var password2 = $('#regPassword2').value;
+    var companyGroup = $('#regCompanyGroup').value;
+
+    if (password !== password2) {
+      showError('两次输入的密码不一致', true);
+      return;
+    }
+
+    doRegister(email, displayName, password, companyGroup);
+  });
+
+  checkExistingToken();
+})();
+</script>
+</body>
+</html>

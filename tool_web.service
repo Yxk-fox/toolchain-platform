@@ -1,0 +1,19 @@
+[Unit]
+Description=Toolchain Platform Web Service
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=fox
+Group=fox
+WorkingDirectory=/home/fox/toolchain-platform/backend
+ExecStart=/usr/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 3143
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tool-web
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,49 @@
+{
+  "envs": [],
+  "tools": [],
+  "categories": {},
+  "favorites": {
+    "envs": [],
+    "tools": []
+  },
+  "history": [],
+  "settings": {},
+  "users": [],
+  "tokens": {},
+  "permission_grants": [],
+  "quick_entries": [],
+  "user_quick_entries": {},
+  "env_groups": [],
+  "toolbox_groups": [],
+  "mine_groups": [],
+  "scripts": [],
+  "user_favorites": {},
+  "alerts": [],
+  "api_config": {
+    "enabled": true,
+    "port": 3143,
+    "token_auth_enabled": true,
+    "api_token": "bcf15818e035eac21e08646b1c60129380a926cabe61d96082e16fc41c591275"
+  },
+  "programs": [],
+  "program_categories": [
+    "脚本",
+    "服务",
+    "配置",
+    "工具"
+  ],
+  "menu_order": [
+    "home",
+    "urls",
+    "tools",
+    "programs",
+    "toolbox",
+    "scripts",
+    "favorites",
+    "api",
+    "settings",
+    "users"
+  ],
+  "recycle_requests": [],
+  "inspect_history": []
+}

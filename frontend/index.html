@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>伯镭工具链 - Toolchain Platform</title>
+<link rel="icon" href="/ui/car.ico" type="image/x-icon">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="/css/style.css?v=1.6">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="topbar-left">
+      <span class="logo-text">伯镭工具链</span>
+    </div>
+    <div class="topbar-search">
+      <i class="fa-solid fa-magnifying-glass search-icon"></i>
+      <input type="text" id="globalSearch" placeholder="搜索环境、工具..." autocomplete="off">
+      <div id="searchResults" class="search-results hidden"></div>
+    </div>
+    <div class="topbar-right">
+      <button id="alertBellBtn" class="topbar-btn" title="告警中心" style="display:none;position:relative;">
+        <i class="fa-solid fa-bell"></i>
+        <span id="alertBadge" class="alert-badge" style="display:none;">0</span>
+      </button>
+      <button id="themeToggle" class="topbar-btn" title="切换主题">
+        <i class="fa-solid fa-moon"></i>
+      </button>
+      <span class="topbar-user" id="topbarUser"><a href="/login.html" style="color:var(--primary-color);text-decoration:none;font-size:14px;"><i class="fa-solid fa-right-to-bracket"></i> 登录</a></span>
+    </div>
+  </header>
+
+  <div id="mainLayout">
+    <nav id="sidebar"></nav>
+    <main id="content"></main>
+  </div>
+
+  <div id="modalOverlay" class="modal-overlay hidden">
+    <div id="modalBox" class="modal-box"></div>
+  </div>
+</div>
+
+<script src="/js/modules/core.js?v=4.0"></script>
+<script src="/js/app.js?v=3.3"></script>
+<script src="/js/modules/alerts.js?v=1.2"></script>
+<script src="/js/modules/recycle.js?v=1.2"></script>
+<script src="/js/modules/services.js?v=1.1"></script>
+<script src="/js/modules/history.js?v=1.2"></script>
+</body>
+</html>
