@@ -1,0 +1,299 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "username": "admin",
+      "password": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+      "display_name": "管理员",
+      "role": "superadmin",
+      "permissions": [
+        "add",
+        "delete",
+        "view",
+        "modify"
+      ],
+      "pages": [
+        "*"
+      ],
+      "company_group": "perception",
+      "company_groups": [
+        "perception"
+      ]
+    },
+    {
+      "id": 2,
+      "username": "honglan.wang@boonray.com",
+      "password": "32d9f2dd8256f8c2fcdf4cf4d98addd3fc7303d47ad9e6a9005ad36e70bdfbf5",
+      "display_name": "王红兰",
+      "role": "user",
+      "permissions": [
+        "view"
+      ],
+      "pages": [
+        "home",
+        "urls",
+        "tools",
+        "programs",
+        "toolbox",
+        "favorites"
+      ],
+      "company_group": "quality",
+      "company_groups": [
+        "quality"
+      ]
+    },
+    {
+      "id": 3,
+      "username": "wenrui.cao@boonray.com",
+      "password": "32d9f2dd8256f8c2fcdf4cf4d98addd3fc7303d47ad9e6a9005ad36e70bdfbf5",
+      "display_name": "曹文瑞",
+      "role": "user",
+      "permissions": [
+        "view"
+      ],
+      "pages": [
+        "home",
+        "urls",
+        "tools",
+        "programs",
+        "toolbox",
+        "favorites"
+      ],
+      "company_group": "quality",
+      "company_groups": [
+        "quality"
+      ]
+    },
+    {
+      "id": 4,
+      "username": "ning.jiao@boonray.com",
+      "password": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+      "display_name": "焦宁",
+      "role": "superadmin",
+      "permissions": [
+        "add",
+        "delete",
+        "view",
+        "modify"
+      ],
+      "pages": [
+        "home",
+        "urls",
+        "services",
+        "tools",
+        "programs",
+        "toolbox",
+        "favorites",
+        "alerts",
+        "recycle"
+      ],
+      "company_group": "simulation",
+      "company_groups": [
+        "simulation",
+        "quality"
+      ]
+    },
+    {
+      "id": 5,
+      "username": "shijie.guo@boonray.com",
+      "password": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+      "display_name": "郭仕杰",
+      "role": "user",
+      "permissions": [
+        "view"
+      ],
+      "pages": [
+        "home",
+        "urls",
+        "tools",
+        "programs",
+        "toolbox",
+        "favorites"
+      ],
+      "company_group": "quality",
+      "company_groups": [
+        "quality",
+        "simulation"
+      ]
+    },
+    {
+      "id": 6,
+      "username": "hailun.zhang@boonray.com",
+      "password": "a2badae93a03774408f332f1baa62142d309cd993ebefa8f313097b9d3baa693",
+      "display_name": "张海伦",
+      "role": "superadmin",
+      "permissions": [
+        "add",
+        "delete",
+        "view",
+        "modify"
+      ],
+      "pages": [
+        "*"
+      ],
+      "company_group": "pm",
+      "company_groups": [
+        "pm"
+      ]
+    },
+    {
+      "id": 7,
+      "username": "weizhi.wang@boonray.com",
+      "password": "8298b1867b2141521ab6fcc02b35b3c41283756282adcb9054193f5df56cf08b",
+      "display_name": "王为之",
+      "role": "user",
+      "permissions": [
+        "view"
+      ],
+      "pages": [
+        "home",
+        "urls",
+        "tools",
+        "programs",
+        "toolbox",
+        "favorites"
+      ],
+      "company_group": "hardware",
+      "company_groups": [
+        "hardware"
+      ]
+    },
+    {
+      "id": 8,
+      "username": "yicai.jiang@boonray.com",
+      "password": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+      "display_name": "蒋轶材",
+      "role": "superadmin",
+      "permissions": [
+        "add",
+        "delete",
+        "view",
+        "modify"
+      ],
+      "pages": [
+        "*"
+      ],
+      "company_group": "system",
+      "company_groups": [
+        "system",
+        "cloud_platform",
+        "vehicle_platform"
+      ]
+    }
+  ],
+  "tokens": {
+    "ec65e5e75178d0d3c42fefdeb21617a7bc0f2051f249bc04bf471fbebfbf141f": {
+      "user_id": 5,
+      "expires": "2026-08-12T09:17:50.481802"
+    },
+    "b204b52961961129531862927f8ff5d2e9a832d6fcf56dfb09e21d59c66eec16": {
+      "user_id": 1,
+      "expires": "2026-08-12T09:56:41.733236"
+    },
+    "5120fa3872b70ea4012a23dde9bfc57982212ef33a2795262e31f816ea5a149e": {
+      "user_id": 4,
+      "expires": "2026-08-12T09:59:44.990050"
+    },
+    "7a40ce202bc7cb53a2531e5c9cd2339ea7fddd2b23d547ead3f3874cb38cc572": {
+      "user_id": 1,
+      "expires": "2026-08-12T10:12:37.102368"
+    },
+    "3394ec295fe9973b333e7f8b4af8f23370eab08b79cffad02ccd892f3990638e": {
+      "user_id": 1,
+      "expires": "2026-08-12T10:43:22.806185"
+    },
+    "776de117489bb27a70dfe41ddf0fd0ddcb0cd459fff685630e4cd633d64d19c5": {
+      "user_id": 1,
+      "expires": "2026-08-12T10:43:37.549596"
+    },
+    "4e379bdec507dbf20dcf165bee339d9b889f4fac437d5dc5de2cd05f35314379": {
+      "user_id": 1,
+      "expires": "2026-08-12T10:44:03.811822"
+    },
+    "51289d27a50d32a2957b333e117b6f8a20b71f0e83b0c5beaa7d63adf7263ee8": {
+      "user_id": 1,
+      "expires": "2026-08-12T11:00:25.927068"
+    },
+    "5a64faccaa2046dfd71515f1d193fff4fc6d7d81f59bb084a1fffa265adb4153": {
+      "user_id": 1,
+      "expires": "2026-08-12T11:00:43.037851"
+    },
+    "b818d0b1f5bf4f1404876ca363296a167b3016d498357472e2fc1f649be4b1a5": {
+      "user_id": 1,
+      "expires": "2026-08-12T11:01:12.462403"
+    },
+    "214f6edac75030db627519dcd3b738c829750f97a6a2c6354d5e62c7375709b4": {
+      "user_id": 1,
+      "expires": "2026-08-12T11:01:35.020554"
+    },
+    "4912c39de864090cba4291fdb4d5a61e34bac5add0ab8bcc02d137bd8b0b9b2b": {
+      "user_id": 1,
+      "expires": "2026-08-12T11:05:48.766239"
+    },
+    "492c4bdd3c282823cadad4f9eba95aa32793c7bda887579b244bd57be79708fd": {
+      "user_id": 1,
+      "expires": "2026-08-12T11:07:40.529994"
+    },
+    "e11baeda2f4a6b8bbc2f889724f3048afac63453e098f4527f277d1298cce326": {
+      "user_id": 1,
+      "expires": "2026-08-12T11:12:06.296228"
+    },
+    "30eece20a13f27c83ab3aaa467061efb0ed280baeb2476fce275ebf631a32fb1": {
+      "user_id": 1,
+      "expires": "2026-08-12T11:12:16.946131"
+    },
+    "ebf85d1e2ac37cfaf11a202022f044a4cc1578e032ee436e60940762f933041d": {
+      "user_id": 1,
+      "expires": "2026-08-12T11:40:50.698298"
+    },
+    "aafb04fc7a132f07745ce23c43d21daeaa2fccbe8082eafe0ce9b6b4168eeefb": {
+      "user_id": 8,
+      "expires": "2026-08-12T11:41:10.892941"
+    },
+    "7ded9cf7abbcd43338074bf5b0d0bc28227e8da45a5589646ca726df7353f81c": {
+      "user_id": 1,
+      "expires": "2026-08-12T11:41:42.459841"
+    },
+    "30f3b90780d3db6292cbfe53c12ed8e83f954a316c8f41b742a1ec66987a2a4b": {
+      "user_id": 5,
+      "expires": "2026-08-12T11:56:46.631291"
+    },
+    "b60dbe20db7573ee7f9104338284028fda996eafee2ec1bc1d05fa8e4cde56c4": {
+      "user_id": 4,
+      "expires": "2026-08-12T14:24:53.422052"
+    },
+    "a29215faa038d28e6e47cb00f9bf48dd2720d617369950c1c002b8ac37c4d7ad": {
+      "user_id": 1,
+      "expires": "2026-08-12T14:27:05.040410"
+    },
+    "04b65a1202bf5fe15f4f885a71ab90631121578af06bb5f9125e87df20663df8": {
+      "user_id": 5,
+      "expires": "2026-08-12T14:27:15.668013"
+    },
+    "2dbcec74a432e352aa3fa09a1e1a28442064a09c8a11fda9464e93456d2b7b8d": {
+      "user_id": 1,
+      "expires": "2026-08-12T14:29:00.279115"
+    },
+    "7461b5d890124e47c91c1c2a9d6e70c2700b4d268c3c4d3defe5c4e9b3fde2f4": {
+      "user_id": 5,
+      "expires": "2026-08-12T15:00:01.484563"
+    },
+    "f069165f77a741c6c8fdbb50268fed30f1b6d1dea50bc596df9798ae4dc9478d": {
+      "user_id": 4,
+      "expires": "2026-08-12T16:22:21.677708"
+    },
+    "eae7fcd6d7333c74bf2ed7025a7aafcd725b751a4caa7fbd1cb73eebba54dfd7": {
+      "user_id": 5,
+      "expires": "2026-08-12T16:51:40.717419"
+    },
+    "266dfe0675405774e53e6d5073b67c3552eddfa3f5a9280161f8597440e02651": {
+      "user_id": 1,
+      "expires": "2026-08-12T16:56:32.223555"
+    },
+    "1470bd0f336dd117ac5a0f57c6c697c4dcd200b0dc586dab53fd8aa9fc37f522": {
+      "user_id": 4,
+      "expires": "2026-08-12T16:56:38.872895"
+    }
+  },
+  "permission_grants": []
+}

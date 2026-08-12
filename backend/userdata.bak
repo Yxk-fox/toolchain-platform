@@ -1,0 +1,207 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "username": "admin",
+      "password": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+      "display_name": "管理员",
+      "role": "superadmin",
+      "permissions": [
+        "add",
+        "delete",
+        "view",
+        "modify"
+      ],
+      "pages": [
+        "*"
+      ],
+      "company_group": "perception",
+      "company_groups": [
+        "perception"
+      ]
+    },
+    {
+      "id": 2,
+      "username": "honglan.wang@boonray.com",
+      "password": "32d9f2dd8256f8c2fcdf4cf4d98addd3fc7303d47ad9e6a9005ad36e70bdfbf5",
+      "display_name": "王红兰",
+      "role": "user",
+      "permissions": [
+        "view"
+      ],
+      "pages": [
+        "home",
+        "urls",
+        "tools",
+        "programs",
+        "toolbox",
+        "favorites"
+      ],
+      "company_group": "quality",
+      "company_groups": [
+        "quality"
+      ]
+    },
+    {
+      "id": 3,
+      "username": "wenrui.cao@boonray.com",
+      "password": "32d9f2dd8256f8c2fcdf4cf4d98addd3fc7303d47ad9e6a9005ad36e70bdfbf5",
+      "display_name": "曹文瑞",
+      "role": "user",
+      "permissions": [
+        "view"
+      ],
+      "pages": [
+        "home",
+        "urls",
+        "tools",
+        "programs",
+        "toolbox",
+        "favorites"
+      ],
+      "company_group": "quality",
+      "company_groups": [
+        "quality"
+      ]
+    },
+    {
+      "id": 4,
+      "username": "ning.jiao@boonray.com",
+      "password": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+      "display_name": "焦宁",
+      "role": "superadmin",
+      "permissions": [
+        "add",
+        "delete",
+        "view",
+        "modify"
+      ],
+      "pages": [
+        "home",
+        "urls",
+        "services",
+        "tools",
+        "programs",
+        "toolbox",
+        "favorites",
+        "alerts",
+        "recycle"
+      ],
+      "company_group": "simulation",
+      "company_groups": [
+        "simulation",
+        "quality"
+      ]
+    },
+    {
+      "id": 5,
+      "username": "shijie.guo@boonray.com",
+      "password": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+      "display_name": "郭仕杰",
+      "role": "user",
+      "permissions": [
+        "view"
+      ],
+      "pages": [
+        "home",
+        "urls",
+        "tools",
+        "programs",
+        "toolbox",
+        "favorites"
+      ],
+      "company_group": "quality",
+      "company_groups": [
+        "quality",
+        "simulation"
+      ]
+    },
+    {
+      "id": 6,
+      "username": "hailun.zhang@boonray.com",
+      "password": "a2badae93a03774408f332f1baa62142d309cd993ebefa8f313097b9d3baa693",
+      "display_name": "张海伦",
+      "role": "superadmin",
+      "permissions": [
+        "add",
+        "delete",
+        "view",
+        "modify"
+      ],
+      "pages": [
+        "*"
+      ],
+      "company_group": "pm",
+      "company_groups": [
+        "pm"
+      ]
+    },
+    {
+      "id": 7,
+      "username": "weizhi.wang@boonray.com",
+      "password": "8298b1867b2141521ab6fcc02b35b3c41283756282adcb9054193f5df56cf08b",
+      "display_name": "王为之",
+      "role": "user",
+      "permissions": [
+        "view"
+      ],
+      "pages": [
+        "home",
+        "urls",
+        "tools",
+        "programs",
+        "toolbox",
+        "favorites"
+      ],
+      "company_group": "hardware",
+      "company_groups": [
+        "hardware"
+      ]
+    },
+    {
+      "id": 8,
+      "username": "yicai.jiang@boonray.com",
+      "password": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+      "display_name": "蒋轶材",
+      "role": "superadmin",
+      "permissions": [
+        "add",
+        "delete",
+        "view",
+        "modify"
+      ],
+      "pages": [
+        "*"
+      ],
+      "company_group": "system",
+      "company_groups": [
+        "system",
+        "cloud_platform",
+        "vehicle_platform"
+      ]
+    }
+  ],
+  "tokens": {
+    "eae7fcd6d7333c74bf2ed7025a7aafcd725b751a4caa7fbd1cb73eebba54dfd7": {
+      "user_id": 5,
+      "expires": "2026-08-12T16:51:40.717419"
+    },
+    "266dfe0675405774e53e6d5073b67c3552eddfa3f5a9280161f8597440e02651": {
+      "user_id": 1,
+      "expires": "2026-08-12T16:56:32.223555"
+    },
+    "1470bd0f336dd117ac5a0f57c6c697c4dcd200b0dc586dab53fd8aa9fc37f522": {
+      "user_id": 4,
+      "expires": "2026-08-12T16:56:38.872895"
+    },
+    "baa4a124042320d4a8b23153699b6719a44fd687d836243d955faf3b0015b59b": {
+      "user_id": 1,
+      "expires": "2026-08-13T16:39:56.629929"
+    },
+    "f3d9008574ee8f042466f0c2e81d7b4b7bd5942827bde2fe4aa37cd1b54d07d3": {
+      "user_id": 1,
+      "expires": "2026-08-13T16:50:50.922463"
+    }
+  },
+  "permission_grants": []
+}

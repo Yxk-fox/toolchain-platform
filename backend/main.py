@@ -23,7 +23,8 @@ from fastapi import UploadFile, File, Form
 from pydantic import BaseModel
 
 BASE_DIR = Path(__file__).resolve().parent
-DATA_FILE = BASE_DIR / "data.json"
+DATA_DIR = BASE_DIR  # 子 json 文件存放目录（即 backend/）
+LEGACY_DATA_FILE = DATA_DIR / "data.json"  # 旧单体文件，迁移后改名为 data.json.legacy
 FRONTEND_DIR = BASE_DIR.parent / "frontend"
 UI_DIR = BASE_DIR.parent / "ui"
 ICON_DIR = BASE_DIR / "icons"
@@ -34,6 +35,9 @@ PROGRAMS_DIR = BASE_DIR / "programs"
 PROGRAMS_DIR.mkdir(exist_ok=True)
 TOOL_PACKAGES_DIR = BASE_DIR / "tool_packages"
 TOOL_PACKAGES_DIR.mkdir(exist_ok=True)
+# 每日备份目录与保留天数
+BACKUP_DIR = BASE_DIR.parent / "ck" / "data" / "bk"
+BACKUP_KEEP_DAYS = 7
 LOCK = threading.Lock()
 
 connected_clients = set()
@@ -41,11 +45,20 @@ connected_clients = set()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _cleanup_tmp_residue()
-    # 启动时预热数据缓存，避免第一个API请求读磁盘
+    # 启动迁移：把 legacy data.json 拆分为 8 个模块子文件
+    _migrate_legacy_data_json()
+    # 启动时预热所有模块缓存，避免第一个 API 请求读磁盘
     load_data()
     start_status_refresh_thread()
     threading.Thread(target=refresh_status_cache_sync, daemon=True).start()
     asyncio.create_task(broadcast_status())
+    # 启动每日 22:59 自动备份调度线程
+    threading.Thread(target=_backup_scheduler, daemon=True).start()
+    # 启动时清理一次过期备份
+    try:
+        _cleanup_old_backups()
+    except Exception as e:
+        print(f"[backup] 启动清理过期备份失败（忽略）: {e}", flush=True)
     yield
 
 app = FastAPI(title="Toolchain Platform API", version="1.0.0", lifespan=lifespan, docs_url=None, redoc_url=None)
@@ -68,14 +81,14 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR)), name="static")
 
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc: HTTPException):
+    # 端点主动抛出的 HTTPException(404, detail=...) 保留 detail 字段，前端可据此展示具体错误
+    if exc.detail and exc.detail != "Not Found":
+        return JSONResponse(status_code=404, content={"detail": exc.detail})
     return JSONResponse(status_code=404, content={"error": "Not Found", "message": "The requested resource was not found", "path": request.url.path})
 
 @app.exception_handler(500)
 async def internal_error_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content={"error": "Internal Server Error", "message": "An unexpected error occurred"})
-
-_data_cache = None
-_data_cache_mtime = 0
 
 DEFAULT_COMPANY_GROUPS = [
     {"id": "general", "name": "通用软件", "icon": "fa-solid fa-globe", "color": "#6b7280"},
@@ -93,169 +106,421 @@ DEFAULT_COMPANY_GROUPS = [
     {"id": "pm", "name": "研发项目管理组", "icon": "fa-solid fa-clipboard-list", "color": "#fbbf24"}
 ]
 
-def _cleanup_tmp_residue():
-    """启动时清理上一次崩溃可能残留的 .tmp 文件（不抛异常，仅记日志）。"""
-    try:
-        tmp_file = DATA_FILE.with_suffix(".tmp")
-        if tmp_file.exists():
-            tmp_file.unlink()
-            print(f"[load_data] 清理残留临时文件: {tmp_file}", flush=True)
-    except Exception as e:
-        print(f"[load_data] 清理 .tmp 残留失败（忽略）: {e}", flush=True)
+# ============ 数据存储层（按业务模块解耦）============
+# 每个模块对应一个独立 json 文件，独立缓存与异步写入，避免登录等高频写场景写全量 3.7MB。
+# 兼容接口：
+#   load_data()                          -> 聚合所有模块的合并 dict（多模块读场景）
+#   save_data(data, dirty_modules=None)  -> 按模块拆分写入；dirty_modules=None 时全写
+# 模块级接口（高频场景按需加载/写入）：
+#   load_module(name)                    -> 只加载指定模块
+#   save_module(name, data)              -> 只写指定模块
 
+def _default_user_data():
+    return {"users": [], "tokens": {}, "permission_grants": []}
 
-def _load_data_from_disk():
-    """从磁盘加载数据，执行迁移检查（仅内部使用，外部请用load_data获取缓存）"""
-    if not DATA_FILE.exists():
-        default_api_token = secrets.token_hex(32)
-        return {
-            "envs": [], "tools": [], "categories": [], "settings": {},
-            "favorites": [], "history": [], "users": [], "tokens": {},
-            "permission_grants": [], "quick_entries": [], "env_groups": [],
-            "toolbox_groups": [], "user_favorites": {},
-            "mine_groups": [], "scripts": [],
-            "programs": [], "program_categories": ["脚本", "服务", "配置", "工具"],
-            "services": [], "service_dependencies": [], "inspection_history": [], "alerts": [], "recycle_requests": [],
-            "menu_order": ["home", "urls", "services", "tools", "programs", "toolbox", "favorites", "alerts", "recycle", "api", "settings", "users"],
-            "tool_company_groups": DEFAULT_COMPANY_GROUPS,
-            "api_config": {
-                "enabled": True,
-                "port": 3143,
-                "token_auth_enabled": True,
-                "api_token": default_api_token
-            }
+def _default_app_data():
+    return {
+        "tools": [], "categories": {}, "tool_company_groups": DEFAULT_COMPANY_GROUPS,
+        "favorites": {}, "user_favorites": {}, "history": [],
+        "quick_entries": [], "user_quick_entries": {}
+    }
+
+def _default_error_data():
+    return {"alerts": [], "inspection_history": [], "recycle_requests": []}
+
+def _default_service_data():
+    return {"services": [], "service_dependencies": []}
+
+def _default_env_data():
+    return {"envs": [], "env_groups": []}
+
+def _default_program_data():
+    return {"programs": [], "program_categories": ["脚本", "服务", "配置", "工具"], "scripts": []}
+
+def _default_toolbox_data():
+    return {"toolbox_groups": [], "mine_groups": []}
+
+def _default_settings_data():
+    return {
+        "settings": {},
+        "menu_order": ["home", "urls", "services", "tools", "programs", "toolbox", "favorites", "alerts", "recycle", "api", "settings", "users"],
+        "api_config": {
+            "enabled": True, "port": 3143, "token_auth_enabled": True,
+            "api_token": secrets.token_hex(32)
         }
-    for attempt in range(3):
+    }
+
+# 模块定义：name -> (filename, keys_list, defaults_factory)
+MODULES = {
+    "user":     ("userdata.json",     ["users", "tokens", "permission_grants"], _default_user_data),
+    "app":      ("appdata.json",      ["tools", "categories", "tool_company_groups", "favorites", "user_favorites", "history", "quick_entries", "user_quick_entries"], _default_app_data),
+    "error":    ("errordata.json",    ["alerts", "inspection_history", "recycle_requests"], _default_error_data),
+    "service":  ("servicedata.json",  ["services", "service_dependencies"], _default_service_data),
+    "env":      ("envdata.json",      ["envs", "env_groups"], _default_env_data),
+    "program":  ("programdata.json",  ["programs", "program_categories", "scripts"], _default_program_data),
+    "toolbox":  ("toolboxdata.json",  ["toolbox_groups", "mine_groups"], _default_toolbox_data),
+    "settings": ("settingsdata.json", ["settings", "menu_order", "api_config"], _default_settings_data),
+}
+
+# 模块级缓存与锁
+_module_caches = {}            # name -> dict
+_module_mtimes = {}            # name -> float
+_module_locks = {n: threading.Lock() for n in MODULES}
+_module_save_pending = {n: {"data": None, "scheduled": False} for n in MODULES}
+_module_save_locks = {n: threading.Lock() for n in MODULES}
+
+def _module_file(name):
+    return DATA_DIR / MODULES[name][0]
+
+def _cleanup_tmp_residue():
+    """启动时清理上一次崩溃可能残留的 .tmp 文件（所有模块，不抛异常，仅记日志）。"""
+    for name in MODULES:
+        f = _module_file(name)
+        tmp = f.with_suffix(".tmp")
+        if tmp.exists():
+            try:
+                tmp.unlink()
+                print(f"[load_data] 清理残留临时文件: {tmp}", flush=True)
+            except Exception as e:
+                print(f"[load_data] 清理 .tmp 残留失败（忽略）: {e}", flush=True)
+
+
+def _apply_legacy_migrations(data):
+    """对 legacy data.json 执行迁移检查（提取自原 _load_data_from_disk）。"""
+    if "api_config" not in data:
+        data["api_config"] = {
+            "enabled": True, "port": 3143,
+            "token_auth_enabled": True,
+            "api_token": secrets.token_hex(32)
+        }
+    if "programs" not in data:
+        data["programs"] = []
+    if "program_categories" not in data:
+        data["program_categories"] = ["脚本", "服务", "配置", "工具"]
+    # 普通用户默认仅可访问: home, urls, tools, toolbox, favorites, programs
+    allowed_user_pages = {"home", "urls", "tools", "toolbox", "favorites", "programs"}
+    for u in data.get("users", []):
+        if u.get("role") != "superadmin":
+            pages = u.get("pages", [])
+            if pages == ["*"]:
+                pages = list(allowed_user_pages)
+            filtered = [p for p in pages if p in allowed_user_pages]
+            for p in allowed_user_pages:
+                if p not in filtered:
+                    filtered.append(p)
+            if filtered != pages:
+                u["pages"] = filtered
+        if "company_group" not in u:
+            u["company_group"] = "general"
+        if "company_groups" not in u:
+            cg = u.get("company_group", "general")
+            u["company_groups"] = [] if cg == "general" else [cg]
+    mo = data.get("menu_order", [])
+    new_mo = ["home", "urls", "services", "tools", "programs", "toolbox", "favorites", "alerts", "recycle", "api", "settings", "users"]
+    if any(p not in mo for p in ["services", "alerts", "recycle"]):
+        data["menu_order"] = new_mo
+    for t in data.get("tools", []):
+        if "package_name" not in t:
+            t["package_name"] = None
+            t["package_size"] = 0
+        if "company_group" not in t:
+            t["company_group"] = "general"
+        if "tags" not in t:
+            t["tags"] = []
+    if "tool_company_groups" not in data:
+        data["tool_company_groups"] = DEFAULT_COMPANY_GROUPS
+    if "services" not in data:
+        data["services"] = []
+    if "service_dependencies" not in data:
+        data["service_dependencies"] = []
+
+
+def _migrate_legacy_data_json():
+    """启动迁移：若所有子文件都不存在但 data.json 存在，拆分到 8 个模块子文件，
+    原文件重命名为 data.json.legacy 作为应急回滚备份。"""
+    legacy = LEGACY_DATA_FILE
+    if not legacy.exists():
+        return
+    # 已迁移则跳过（任一子文件存在即视为已迁移）
+    if any(_module_file(n).exists() for n in MODULES):
+        return
+    print("[migrate] 检测到 legacy data.json，开始拆分迁移到 8 个模块子文件...", flush=True)
+    try:
+        with open(legacy, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as e:
+        print(f"[migrate] 读取 data.json 失败: {e}", flush=True)
+        return
+    _apply_legacy_migrations(data)
+    # 按模块拆分同步写入
+    for name, (filename, keys, defaults_fn) in MODULES.items():
+        defaults = defaults_fn()
+        mod_data = {k: data.get(k, defaults[k]) for k in keys}
+        _do_save_module_sync(name, mod_data)
+        print(f"[migrate] 写入 {filename} ({len(keys)} keys)", flush=True)
+    # 原文件改名为 .legacy
+    legacy_target = DATA_DIR / "data.json.legacy"
+    try:
+        if legacy_target.exists():
+            legacy_target.unlink()
+        legacy.rename(legacy_target)
+        print(f"[migrate] 迁移完成，原 data.json 已重命名为 {legacy_target.name}", flush=True)
+    except Exception as e:
+        print(f"[migrate] 重命名 data.json 失败: {e}（子文件已生成，可手动删除 data.json）", flush=True)
+
+
+def load_module(name):
+    """加载单个模块到内存缓存，返回模块 dict（引用，修改会反映到缓存）。"""
+    if name not in MODULES:
+        raise KeyError(f"Unknown module: {name}")
+    filename, keys, defaults_fn = MODULES[name]
+    f = _module_file(name)
+    try:
+        mtime = f.stat().st_mtime if f.exists() else 0
+    except OSError:
+        mtime = 0
+    if name in _module_caches and _module_mtimes.get(name) == mtime:
+        return _module_caches[name]
+    with _module_locks[name]:
         try:
-            with open(DATA_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if "api_config" not in data:
-                    data["api_config"] = {
-                        "enabled": True,
-                        "port": 3143,
-                        "token_auth_enabled": True,
-                        "api_token": secrets.token_hex(32)
-                    }
-                if "programs" not in data:
-                    data["programs"] = []
-                if "program_categories" not in data:
-                    data["program_categories"] = ["脚本", "服务", "配置", "工具"]
-                _migrated = False
-                new_pages_for_users = ["services", "tools", "toolbox", "alerts", "recycle", "programs"]
-                for u in data.get("users", []):
-                    if u.get("role") != "superadmin":
-                        pages = u.get("pages", [])
-                        updated = False
-                        for p in new_pages_for_users:
-                            if p not in pages:
-                                pages.append(p)
-                                updated = True
-                        if updated:
-                            u["pages"] = pages
-                            _migrated = True
-                    if "company_group" not in u:
-                        u["company_group"] = "general"
-                        _migrated = True
-                    if "company_groups" not in u:
-                        cg = u.get("company_group", "general")
-                        u["company_groups"] = [] if cg == "general" else [cg]
-                        _migrated = True
-                mo = data.get("menu_order", [])
-                new_mo = ["home", "urls", "services", "tools", "programs", "toolbox", "favorites", "alerts", "recycle", "api", "settings", "users"]
-                need_update_mo = False
-                for p in ["services", "alerts", "recycle"]:
-                    if p not in mo:
-                        need_update_mo = True
+            mtime = f.stat().st_mtime if f.exists() else 0
+        except OSError:
+            mtime = 0
+        if name in _module_caches and _module_mtimes.get(name) == mtime:
+            return _module_caches[name]
+        if not f.exists():
+            data = defaults_fn()
+        else:
+            data = None
+            for attempt in range(3):
+                try:
+                    with open(f, "r", encoding="utf-8") as fp:
+                        data = json.load(fp)
+                    defaults = defaults_fn()
+                    for k in keys:
+                        if k not in data:
+                            data[k] = defaults[k]
+                    break
+                except (json.JSONDecodeError, OSError):
+                    if attempt == 2:
+                        data = defaults_fn()
                         break
-                if need_update_mo:
-                    data["menu_order"] = new_mo
-                    _migrated = True
-                for t in data.get("tools", []):
-                    if "package_name" not in t:
-                        t["package_name"] = None
-                        t["package_size"] = 0
-                        _migrated = True
-                    if "company_group" not in t:
-                        t["company_group"] = "general"
-                        _migrated = True
-                    if "tags" not in t:
-                        t["tags"] = []
-                        _migrated = True
-                if "tool_company_groups" not in data:
-                    data["tool_company_groups"] = DEFAULT_COMPANY_GROUPS
-                    _migrated = True
-                if "services" not in data:
-                    data["services"] = []
-                    _migrated = True
-                if "service_dependencies" not in data:
-                    data["service_dependencies"] = []
-                    _migrated = True
-                if _migrated:
-                    with open(DATA_FILE, "w", encoding="utf-8") as fw:
-                        json.dump(data, fw, ensure_ascii=False, indent=2)
-                return data
-        except (json.JSONDecodeError, OSError) as e:
-            if attempt == 2:
-                raise
-            time.sleep(0.05 * (attempt + 1))
+                    time.sleep(0.05 * (attempt + 1))
+        _module_caches[name] = data
+        _module_mtimes[name] = mtime
+        return data
+
 
 def load_data():
-    """高性能数据加载：优先使用内存缓存，避免重复磁盘IO和锁竞争"""
-    global _data_cache, _data_cache_mtime
-    try:
-        current_mtime = DATA_FILE.stat().st_mtime if DATA_FILE.exists() else 0
-    except OSError:
-        current_mtime = 0
-    
-    if _data_cache is not None and _data_cache_mtime == current_mtime:
-        return _data_cache
-    
-    with LOCK:
-        # 双重检查，锁内再确认一次缓存
-        try:
-            current_mtime = DATA_FILE.stat().st_mtime if DATA_FILE.exists() else 0
-        except OSError:
-            current_mtime = 0
-        if _data_cache is not None and _data_cache_mtime == current_mtime:
-            return _data_cache
-        
-        _data_cache = _load_data_from_disk()
-        _data_cache_mtime = current_mtime
-        return _data_cache
+    """聚合所有模块，返回合并 dict（用于多模块读场景）。
+    返回的 dict 是各模块缓存的浅合并，修改会反映到对应模块缓存。"""
+    merged = {}
+    for name in MODULES:
+        merged.update(load_module(name))
+    return merged
 
-def save_data(data):
-    global _data_cache, _data_cache_mtime
-    with LOCK:
-        json.dumps(data, ensure_ascii=False)
-        bak_file = DATA_FILE.with_suffix(".bak")
-        if DATA_FILE.exists():
-            try:
-                shutil.copy2(DATA_FILE, bak_file)
-            except Exception as e:
-                print(f"[save_data] 备份 .bak 失败（忽略，继续写入）: {e}", flush=True)
-        tmp_file = DATA_FILE.with_suffix(f".tmp.{os.getpid()}")
+
+def _do_save_module_sync(name, data):
+    """同步写单个模块文件（内部使用）"""
+    f = _module_file(name)
+    with _module_locks[name]:
+        bak = f.with_suffix(".bak")
+        if f.exists():
+            try: shutil.copy2(f, bak)
+            except Exception as e: print(f"[save_module:{name}] 备份 .bak 失败（忽略）: {e}", flush=True)
+        tmp = f.with_suffix(f".tmp.{os.getpid()}")
         try:
-            with open(tmp_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(str(tmp_file), str(DATA_FILE))
+            with open(tmp, "w", encoding="utf-8") as fp:
+                json.dump(data, fp, ensure_ascii=False, indent=2)
+                fp.flush()
+                os.fsync(fp.fileno())
+            os.replace(str(tmp), str(f))
         except Exception as e:
-            print(f"[save_data] 临时文件替换失败，尝试直接写入: {e}", flush=True)
-            if tmp_file.exists():
-                try:
-                    tmp_file.unlink()
-                except:
-                    pass
-            with open(DATA_FILE, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-                f.flush()
-                os.fsync(f.fileno())
-        _data_cache = data
+            print(f"[save_module:{name}] 临时文件替换失败，尝试直接写入: {e}", flush=True)
+            if tmp.exists():
+                try: tmp.unlink()
+                except: pass
+            with open(f, "w", encoding="utf-8") as fp:
+                json.dump(data, fp, ensure_ascii=False, indent=2)
+                fp.flush()
+                os.fsync(fp.fileno())
+        _module_caches[name] = data
         try:
-            _data_cache_mtime = DATA_FILE.stat().st_mtime
+            _module_mtimes[name] = f.stat().st_mtime
         except OSError:
-            _data_cache_mtime = time.time()
+            _module_mtimes[name] = time.time()
+
+
+def _do_save_module_async(name):
+    """异步写单个模块文件：合并多次 save_module 请求为一次磁盘写入。"""
+    while True:
+        with _module_save_locks[name]:
+            data = _module_save_pending[name]["data"]
+            if data is None:
+                _module_save_pending[name]["scheduled"] = False
+                break
+            _module_save_pending[name]["data"] = None
+        try:
+            _do_save_module_sync(name, data)
+        except Exception as e:
+            print(f"[save_module:{name}] 后台写入失败: {e}", flush=True)
+
+
+def save_module(name, data):
+    """保存单个模块：内存立即更新，磁盘异步写入，调用方立即返回（~0ms）。"""
+    if name not in MODULES:
+        raise KeyError(f"Unknown module: {name}")
+    _module_caches[name] = data
+    _module_mtimes[name] = time.time()
+    with _module_save_locks[name]:
+        _module_save_pending[name]["data"] = data
+        if not _module_save_pending[name]["scheduled"]:
+            _module_save_pending[name]["scheduled"] = True
+            threading.Thread(target=_do_save_module_async, args=(name,), daemon=True).start()
+
+
+def save_data(data, dirty_modules=None):
+    """保存数据：按模块拆分写入。dirty_modules=None 时所有模块都写；
+    指定时仅写列出的模块（高频场景如登录可仅传 ['user']）。"""
+    if dirty_modules is None:
+        dirty_modules = list(MODULES.keys())
+    for name in dirty_modules:
+        if name not in MODULES:
+            continue
+        filename, keys, defaults_fn = MODULES[name]
+        defaults = defaults_fn()
+        mod_data = {k: data.get(k, defaults[k]) for k in keys}
+        save_module(name, mod_data)
+
+
+# ============ 每日 22:59 自动备份 + 7 天清理 ============
+
+def _run_daily_backup():
+    """执行一次备份：复制所有子文件到 ck/data/bk/YYYY/MM/DD/，生成 readme.md。"""
+    today = datetime.now()
+    date_dir = BACKUP_DIR / f"{today.year:04d}" / f"{today.month:02d}" / f"{today.day:02d}"
+    date_dir.mkdir(parents=True, exist_ok=True)
+    file_infos = []
+    for name, (filename, keys, defaults_fn) in MODULES.items():
+        src = _module_file(name)
+        if not src.exists():
+            continue
+        dst = date_dir / filename
+        shutil.copy2(src, dst)
+        size = dst.stat().st_size
+        sha = hashlib.sha256()
+        with open(dst, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                sha.update(chunk)
+        try:
+            with open(dst, "r", encoding="utf-8") as f:
+                d = json.load(f)
+            counts = {k: (len(v) if isinstance(v, (list, dict)) else 1) for k, v in d.items()}
+        except Exception:
+            counts = {}
+        file_infos.append({
+            "file": filename, "module": name, "size": size,
+            "sha256": sha.hexdigest(), "counts": counts
+        })
+    # 生成 readme.md
+    readme = date_dir / "readme.md"
+    lines = [
+        f"# 数据备份 - {today.strftime('%Y-%m-%d %H:%M:%S')}",
+        "",
+        f"- **备份时间**：{today.isoformat(timespec='seconds')}",
+        f"- **备份目录**：`{date_dir}`",
+        f"- **保留天数**：{BACKUP_KEEP_DAYS} 天",
+        f"- **模块数量**：{len(file_infos)}",
+        "",
+        "## 备份文件列表",
+        "",
+        "| 文件 | 模块 | 大小 | SHA256（前16位） | 记录数 |",
+        "|---|---|---|---|---|",
+    ]
+    for info in file_infos:
+        size = info["size"]
+        if size >= 1024 * 1024:
+            size_str = f"{size/1024/1024:.2f} MB"
+        elif size >= 1024:
+            size_str = f"{size/1024:.2f} KB"
+        else:
+            size_str = f"{size} B"
+        counts_str = ", ".join(f"{k}={v}" for k, v in info["counts"].items()) or "-"
+        lines.append(f"| `{info['file']}` | {info['module']} | {size_str} | `{info['sha256'][:16]}` | {counts_str} |")
+    lines.extend([
+        "",
+        "## 恢复方式",
+        "",
+        "1. 停止后端服务",
+        "2. 将所需 `.json` 文件复制回 `backend/` 目录（覆盖现有文件）",
+        "3. 重启服务",
+        "",
+        "## 自动清理",
+        "",
+        f"超过 {BACKUP_KEEP_DAYS} 天的备份目录（按日期计算）会被自动删除。",
+    ])
+    readme.write_text("\n".join(lines), encoding="utf-8")
+    print(f"[backup] 备份完成: {date_dir} ({len(file_infos)} 个文件)", flush=True)
+
+
+def _cleanup_old_backups():
+    """删除超过保留天数的备份目录"""
+    cutoff = datetime.now() - timedelta(days=BACKUP_KEEP_DAYS)
+    if not BACKUP_DIR.exists():
+        return
+    removed = 0
+    for year_dir in list(BACKUP_DIR.iterdir()):
+        if not year_dir.is_dir():
+            continue
+        for month_dir in list(year_dir.iterdir()):
+            if not month_dir.is_dir():
+                continue
+            for day_dir in list(month_dir.iterdir()):
+                if not day_dir.is_dir():
+                    continue
+                try:
+                    d = datetime(year=int(year_dir.name), month=int(month_dir.name), day=int(day_dir.name))
+                except ValueError:
+                    continue
+                if d.date() < cutoff.date():
+                    try:
+                        shutil.rmtree(day_dir)
+                        removed += 1
+                        print(f"[backup] 清理过期备份: {day_dir}", flush=True)
+                    except Exception as e:
+                        print(f"[backup] 清理失败 {day_dir}: {e}", flush=True)
+            try:
+                if month_dir.exists() and not any(month_dir.iterdir()):
+                    month_dir.rmdir()
+            except Exception:
+                pass
+        try:
+            if year_dir.exists() and not any(year_dir.iterdir()):
+                year_dir.rmdir()
+        except Exception:
+            pass
+    if removed:
+        print(f"[backup] 共清理 {removed} 个过期备份目录", flush=True)
+
+
+def _backup_scheduler():
+    """每 30 秒检查时间，到 22:59 触发每日备份。"""
+    last_backup_date = None
+    while True:
+        try:
+            now = datetime.now()
+            if now.hour == 22 and now.minute == 59:
+                today_str = now.strftime("%Y-%m-%d")
+                if today_str != last_backup_date:
+                    try:
+                        _run_daily_backup()
+                        _cleanup_old_backups()
+                        last_backup_date = today_str
+                    except Exception as e:
+                        print(f"[backup] 备份失败: {e}", flush=True)
+        except Exception as e:
+            print(f"[backup] 调度异常: {e}", flush=True)
+        time.sleep(30)
 
 def hash_password(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
@@ -291,7 +556,7 @@ def get_user_from_token(token: str):
     expires = datetime.fromisoformat(token_data["expires"])
     if datetime.now() > expires:
         del data["tokens"][token]
-        save_data(data)
+        save_data(data, ["user"])
         return None
     for u in data.get("users", []):
         if u["id"] == token_data["user_id"]:
@@ -410,6 +675,10 @@ def _archive_inspect_history(data, envs, results):
     })
     cutoff = (datetime.now() - timedelta(days=90)).isoformat()
     new_history = [h for h in history if h.get("timestamp", "") >= cutoff]
+    # 限制最大条数，避免 data.json 膨胀导致登录等写操作变慢（保留最近 1000 条）
+    MAX_INSPECT_HISTORY = 1000
+    if len(new_history) > MAX_INSPECT_HISTORY:
+        new_history = new_history[-MAX_INSPECT_HISTORY:]
     if len(new_history) != len(history):
         data["inspection_history"] = new_history
 
@@ -479,8 +748,8 @@ def refresh_status_cache_sync():
         _check_alerts(data, envs, results)
         # T2.3：归档本次巡检快照（每次巡检都记，便于首页折线图）
         _archive_inspect_history(data, envs, results)
-        # 归档每次都会新增一条历史，统一落盘
-        save_data(data)
+        # 归档每次都会新增一条历史，统一落盘（仅写 error 模块：alerts + inspection_history）
+        save_data(data, ["error"])
     finally:
         _status_updating = False
 
@@ -560,7 +829,7 @@ async def login(req: LoginRequest):
                 data["tokens"] = {}
             data["tokens"][token] = {"user_id": u["id"], "expires": expires}
             data["tokens"] = {k: v for k, v in data["tokens"].items() if datetime.fromisoformat(v["expires"]) > datetime.now()}
-            save_data(data)
+            save_data(data, ["user"])
             cg = u.get("company_group", "general")
             cgs = u.get("company_groups", [])
             if cg != "general" and cg not in cgs:
@@ -583,7 +852,7 @@ async def logout(request: Request):
     data = load_data()
     if token in data.get("tokens", {}):
         del data["tokens"][token]
-        save_data(data)
+        save_data(data, ["user"])
     return {"message": "Logged out"}
 
 # ============ STATUS ============
@@ -1992,6 +2261,7 @@ async def delete_user(user_id: int, request: Request):
     data = load_data()
     for i, u in enumerate(data.get("users", [])):
         if u["id"] == user_id:
+            if u.get("role") == "superadmin": raise HTTPException(status_code=400, detail="Cannot delete superadmin")
             data["users"].pop(i)
             data["tokens"] = {k: v for k, v in data.get("tokens", {}).items() if v["user_id"] != user_id}
             save_data(data); return {"message": "User deleted"}

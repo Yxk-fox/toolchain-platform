@@ -32,9 +32,9 @@
   var _badgeLastTs = 0;
   var _badgePending = false;
   function refreshAlertBadge() {
-    if (!appState.currentUser) {
-      var btn = $('#alertBellBtn');
-      var badge = $('#alertBadge');
+    var btn = $('#alertBellBtn');
+    var badge = $('#alertBadge');
+    if (!appState.currentUser || appState.currentUser.role !== 'superadmin') {
       if (btn) btn.style.display = 'none';
       if (badge) badge.style.display = 'none';
       return;
@@ -49,8 +49,6 @@
     _badgeLastTs = now;
     apiFetch('/alerts?status=active').then(function(res) {
       var count = (res && res.alerts) ? res.alerts.length : 0;
-      var btn = $('#alertBellBtn');
-      var badge = $('#alertBadge');
       if (btn) btn.style.display = '';
       if (badge) {
         badge.textContent = count > 99 ? '99+' : String(count);

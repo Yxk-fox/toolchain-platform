@@ -41,7 +41,7 @@
     users:     { name: '用户管理',      icon: 'fa-users' }
   };
   var DEFAULT_MENU_ORDER = ['home', 'urls', 'services', 'tools', 'programs', 'toolbox', 'favorites', 'alerts', 'recycle', 'api', 'settings', 'users'];
-  var ADMIN_PAGES = ['users', 'settings'];
+  var ADMIN_PAGES = ['users', 'settings', 'alerts'];
   var DEFAULT_USER_PAGES = ["home", "urls", "tools", "toolbox", "favorites", "programs"];
 
   function $(sel) { return document.querySelector(sel); }

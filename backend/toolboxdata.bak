@@ -1,0 +1,114 @@
+{
+  "toolbox_groups": [
+    {
+      "id": "text",
+      "name": "📝 文本与字符串处理",
+      "order": 1,
+      "visible": true
+    },
+    {
+      "id": "code",
+      "name": "🧹 代码格式化与美化",
+      "order": 2,
+      "visible": true
+    },
+    {
+      "id": "crypto",
+      "name": "🔐 编码、加密与哈希",
+      "order": 3,
+      "visible": true
+    },
+    {
+      "id": "convert",
+      "name": "🔄 数据格式转换",
+      "order": 4,
+      "visible": true
+    },
+    {
+      "id": "generator",
+      "name": "🧩 生成器类",
+      "order": 5,
+      "visible": true
+    },
+    {
+      "id": "network",
+      "name": "🌐 网络与运维",
+      "order": 6,
+      "visible": true
+    },
+    {
+      "id": "image",
+      "name": "🎨 图像与设计辅助",
+      "order": 7,
+      "visible": true
+    },
+    {
+      "id": "math",
+      "name": "📐 单位与数学计算",
+      "order": 8,
+      "visible": true
+    },
+    {
+      "id": "misc",
+      "name": "🧪 其他实用小工具",
+      "order": 9,
+      "visible": true
+    }
+  ],
+  "mine_groups": [
+    {
+      "id": "baijiatong",
+      "name": "百佳通",
+      "order": 0,
+      "visible": true
+    },
+    {
+      "id": "jiangyikuang",
+      "name": "将一矿",
+      "order": 1,
+      "visible": true
+    },
+    {
+      "id": "tianchikuang",
+      "name": "天池矿",
+      "order": 2,
+      "visible": true
+    },
+    {
+      "id": "mine_1783417012514",
+      "name": "石头梅",
+      "order": 3,
+      "visible": true
+    },
+    {
+      "id": "mine_1783417025073",
+      "name": "大唐",
+      "order": 4,
+      "visible": true
+    },
+    {
+      "id": "mine_1783417045334",
+      "name": "湖州",
+      "order": 5,
+      "visible": true
+    },
+    {
+      "id": "mine_1783417053580",
+      "name": "平庄",
+      "order": 6,
+      "visible": true
+    },
+    {
+      "id": "mine_1783417063397",
+      "name": "焦作千叶",
+      "order": 7,
+      "visible": true
+    },
+    {
+      "id": "mine_1783417071904",
+      "name": "腾远",
+      "order": 8,
+      "visible": true
+    }
+  ]
+}
