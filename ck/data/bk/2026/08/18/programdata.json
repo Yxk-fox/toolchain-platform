@@ -1,0 +1,67 @@
+{
+  "programs": [
+    {
+      "id": 2,
+      "name": "gpu_ui.py",
+      "version": "",
+      "category": "脚本",
+      "envs": [],
+      "description": "",
+      "dependencies": "",
+      "usage_cmd": "",
+      "stored_name": "d44256f8eb85dcb0_gpu_ui.py",
+      "original_name": "gpu_ui.py",
+      "file_size": 13959,
+      "uploader_id": 0,
+      "uploader_name": "管理员",
+      "download_count": 0,
+      "created_at": "2026-07-06T11:56:52.039224",
+      "updated_at": "2026-07-06T11:56:52.039224"
+    },
+    {
+      "id": 3,
+      "name": "uninstall_todesk.sh",
+      "version": "",
+      "category": "脚本",
+      "envs": [],
+      "description": "",
+      "dependencies": "",
+      "usage_cmd": "",
+      "stored_name": "2c8aeaa94d6c2246_uninstall_todesk.sh",
+      "original_name": "uninstall_todesk.sh",
+      "file_size": 4082,
+      "uploader_id": 0,
+      "uploader_name": "管理员",
+      "download_count": 0,
+      "created_at": "2026-07-06T11:57:15.923250",
+      "updated_at": "2026-07-06T11:57:15.923250"
+    },
+    {
+      "id": 4,
+      "name": "record",
+      "version": "v1.0",
+      "category": "工具",
+      "envs": [
+        "linux"
+      ],
+      "description": "自动录制并压缩到移动硬盘删除源文件",
+      "dependencies": "# 联网机器（同架构/同Python版本）：\r\nbash setup_deps.sh download        # 国内源下载到 packages/\r\n\r\n# 拷贝整个 record/ 目录到离线机器，然后：\r\nbash setup_deps.sh install         # 无网络自动用离线包\r\n\r\n# 或直接运行（会自动检测+安装）：\r\npython3 record.py",
+      "usage_cmd": "python3 record.py",
+      "stored_name": "96526a8ddad4dfc4_record.zip",
+      "original_name": "record.zip",
+      "file_size": 21346,
+      "uploader_id": 1,
+      "uploader_name": "管理员",
+      "download_count": 1,
+      "created_at": "2026-07-31T13:41:04.976043",
+      "updated_at": "2026-07-31T13:41:04.976043"
+    }
+  ],
+  "program_categories": [
+    "脚本",
+    "服务",
+    "配置",
+    "工具"
+  ],
+  "scripts": []
+}

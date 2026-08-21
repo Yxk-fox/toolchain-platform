@@ -1,0 +1,28 @@
+{
+  "settings": {
+    "theme": "light",
+    "primaryColor": "#162dda",
+    "toolView": "grid",
+    "language": "zh"
+  },
+  "menu_order": [
+    "home",
+    "urls",
+    "services",
+    "tools",
+    "programs",
+    "toolbox",
+    "favorites",
+    "alerts",
+    "recycle",
+    "api",
+    "settings",
+    "users"
+  ],
+  "api_config": {
+    "enabled": true,
+    "port": 3143,
+    "token_auth_enabled": true,
+    "api_token": "e883ac0fab6ac7e6b965e2462d54d58d67dfcea6f5fd14a76c3b7d5e277d9383"
+  }
+}

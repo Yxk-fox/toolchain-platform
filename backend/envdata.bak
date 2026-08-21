@@ -269,6 +269,19 @@
       "mine": "腾远",
       "accessType": "ip",
       "domain": ""
+    },
+    {
+      "id": 29,
+      "name": "SimOne",
+      "ip": "192.168.9.129",
+      "port": 30083,
+      "path": "/casemanage",
+      "description": "仿真SimOne",
+      "protocol": "http",
+      "group": "服务",
+      "mine": "",
+      "accessType": "ip",
+      "domain": ""
     }
   ],
   "env_groups": [
