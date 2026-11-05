@@ -2692,3 +2692,50 @@ input:checked + .toggle-slider:before {
 
 #svcDepGraph svg text { fill: var(--text-color); }
 .svc-gnode:hover rect { opacity: 0.3 !important; }
+
+/* ============ 品牌图标（brand-icons.js 内联 SVG） ============ */
+.card .card-icon .bi-icon,
+.card-simple .card-icon .bi-icon {
+  display: inline-block;
+}
+.search-results .sr-icon .bi-icon { display: inline-block; }
+
+/* ============ 拖拽排序（sortable.js） ============ */
+.drag-handle {
+  cursor: grab;
+  color: var(--text-muted);
+  font-size: 14px;
+  width: 18px;
+  flex-shrink: 0;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  touch-action: none; /* 移动端：拖动手柄时不触发页面滚动 */
+  user-select: none;
+  -webkit-user-select: none;
+}
+.card:hover .drag-handle,
+.card-simple:hover .drag-handle { opacity: 0.7; }
+.drag-handle:hover { color: var(--primary-color); opacity: 1; }
+/* 触摸设备无 hover，常显手柄 */
+@media (hover: none) {
+  .drag-handle { opacity: 0.6; }
+}
+
+.sortable-placeholder {
+  border: 2px dashed var(--primary-color);
+  border-radius: 12px;
+  background: rgba(124, 58, 237, 0.06); /* 兜底 */
+  background: color-mix(in srgb, var(--primary-color) 6%, transparent);
+  box-sizing: border-box;
+  transition: width 0.15s ease, height 0.15s ease;
+}
+
+.sortable-dragging {
+  cursor: grabbing !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.22) !important;
+  opacity: 0.95;
+  pointer-events: none;
+  will-change: transform;
+}
+body.sortable-active { user-select: none; -webkit-user-select: none; }

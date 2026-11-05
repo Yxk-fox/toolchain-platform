@@ -1041,7 +1041,7 @@
               var favToolboxIds = d.favorites.toolbox || [];
               var favToolbox = allToolboxTools.filter(function(t) { return favToolboxIds.indexOf(t.id) !== -1; });
               var quickEntries = d.quickEntries || [];
-              var allEntries = favEnvs.map(function(e) { return { type: 'env', id: e.id, icon: 'fa-solid fa-server', name: e.name, url: buildEnvUrl(e) }; })
+              var allEntries = favEnvs.map(function(e) { return { type: 'env', id: e.id, icon: 'fa-solid fa-server', iconHtml: envBrandIconHtml(e), name: e.name, url: buildEnvUrl(e) }; })
                 .concat(favTools.map(function(t) { return { type: 'tool', id: t.id, icon: t.icon, name: t.name, data: t }; }))
                 .concat(favToolbox.map(function(t) { return { type: 'toolbox', id: t.id, icon: t.icon, name: t.name }; }))
                 .concat(quickEntries.map(function(e) { return { type: 'quick', id: 'q' + e.id, icon: e.icon || 'fa-solid fa-link', name: e.name, url: e.url }; }));
@@ -1049,7 +1049,7 @@
               if (entries.length === 0) return '<div class="empty-state"><p>暂无收藏，去各页面点击星标收藏常用内容吧</p></div>';
               return entries.map(function(e) {
                 var isImage = e.icon && (e.icon.startsWith('/icons/') || e.icon.startsWith('http'));
-                var iconHtml = isImage ? '<img src="' + escHtml(e.icon) + '" alt="">' : '<i class="' + escHtml(e.icon) + '"></i>';
+                var iconHtml = e.iconHtml ? e.iconHtml : (isImage ? '<img src="' + escHtml(e.icon) + '" alt="">' : '<i class="' + escHtml(e.icon) + '"></i>');
                 if (e.type === 'toolbox') {
                   return '<a class="quick-entry-item home-qe-item home-toolbox-item" data-type="' + e.type + '" data-id="' + e.id + '" href="javascript:void(0)"><span class="qe-icon ' + (isImage ? 'is-image' : '') + '">' + iconHtml + '</span><span class="qe-name">' + escHtml(e.name) + '</span></a>';
                 }
@@ -1219,18 +1219,29 @@
     });
   }
 
+  // 品牌图标：按名称/域名检索（uil 图标库优先，缺失回退 simple-icons），无匹配时返回 fa 服务器图标
+  function envBrandIconHtml(env, size, fallbackIcon) {
+    if (window.BrandIcons) {
+      var key = BrandIcons.match(env && env.name) || BrandIcons.match(env && env.domain);
+      if (key) return BrandIcons.render(key, { size: size || '1.1em' });
+    }
+    return '<i class="' + (fallbackIcon || 'fa-solid fa-server') + '"></i>';
+  }
+
   function renderEnvCard(env, isFav, s, canModify, canDelete, simple) {
     var host = (env.accessType === 'domain' && env.domain) ? env.domain : env.ip;
     var statusDot = '<span class="status-dot ' + s + '"></span>';
     var isOffline = s === 'offline';
     var offlineClass = isOffline ? ' offline-env-card' : '';
+    // 有修改权限且已登录时显示拖拽手柄，用于卡片排序
+    var dragHandle = (canModify && appState.currentUser) ? '<span class="drag-handle" title="拖动调整顺序"><i class="fa-solid fa-grip-vertical"></i></span>' : '';
     if (simple) {
       var openUrl = buildEnvUrl(env);
       var cardClickAttr = isOffline ? ' data-env-id="' + env.id + '" style="opacity:0.6;cursor:not-allowed;"' : ' data-simple-open-url="' + escHtml(openUrl) + '" data-env-id="' + env.id + '" style="cursor:pointer;"';
       return '<div class="card card-simple' + offlineClass + '"' + cardClickAttr + '>' +
         (appState.currentUser ? '<button class="btn-icon fav-btn' + (isFav ? ' active' : '') + '" data-fav-type="env" data-fav-id="' + env.id + '" title="收藏"><i class="fa-solid fa-star"></i></button>' : '') +
-        '<div class="card-header">' +
-          '<span class="card-icon"><i class="fa-solid fa-server"></i></span>' +
+        '<div class="card-header">' + dragHandle +
+          '<span class="card-icon">' + envBrandIconHtml(env) + '</span>' +
           '<span class="card-title">' + escHtml(env.name) + '</span>' +
         '</div>' +
         '<div class="card-meta card-meta-simple">' +
@@ -1255,8 +1266,8 @@
     }
     return '<div class="card' + offlineClass + '" data-env-id="' + env.id + '">' +
       (appState.currentUser ? '<button class="btn-icon fav-btn' + (isFav ? ' active' : '') + '" data-fav-type="env" data-fav-id="' + env.id + '" title="收藏"><i class="fa-solid fa-star"></i></button>' : '') +
-      '<div class="card-header">' +
-        '<span class="card-icon"><i class="fa-solid fa-server"></i></span>' +
+      '<div class="card-header">' + dragHandle +
+        '<span class="card-icon">' + envBrandIconHtml(env) + '</span>' +
         '<span class="card-title">' + escHtml(env.name) + '</span>' +
       '</div>' +
       '<div class="card-meta">' +
@@ -1302,7 +1313,7 @@
 
       groups.forEach(function(g) {
         var groupEnvs = d.envs.filter(function(env) { return (env.group || '环境') === g.name; });
-        if (isSimple) {
+        if (isSimple && !isGuest) {
           groupEnvs = groupEnvs.filter(function(env) { return !isCloudEnv(env); });
         }
         if (groupEnvs.length === 0) return;
@@ -1359,7 +1370,53 @@
       content.innerHTML = html;
       applyOfflineVisibility();
       bindUrlsEvents();
+      initUrlsSortable(content);
     }
+
+  // 将分组内的新顺序同步到本地 appState.data.envs（ids 占据的原有槽位依次替换）
+  function applyLocalReorder(ids) {
+    var envs = appState.data.envs;
+    var idset = {};
+    ids.forEach(function(i) { idset[i] = true; });
+    var byId = {};
+    envs.forEach(function(e) { byId[e.id] = e; });
+    var k = 0;
+    envs.forEach(function(e, idx) {
+      if (idset[e.id]) envs[idx] = byId[ids[k++]];
+    });
+  }
+
+  // 网址大全卡片拖拽排序（仅已登录且有 modify 权限；访客不启用）
+  function initUrlsSortable(content) {
+    (appState.sortables || []).forEach(function(s) { s.destroy(); });
+    appState.sortables = [];
+    if (!appState.currentUser || !hasPermission('modify')) return;
+    if (!window.Sortable) return;
+    content.querySelectorAll('.card-grid').forEach(function(grid) {
+      var s = Sortable.create(grid, {
+        itemSelector: '.card',
+        handleSelector: '.drag-handle',
+        onEnd: function(item, oldIndex, newIndex) {
+          if (oldIndex === newIndex) return;
+          var ids = [];
+          grid.querySelectorAll('.card').forEach(function(c) {
+            var id = parseInt(c.getAttribute('data-env-id'));
+            if (id) ids.push(id);
+          });
+          apiFetch('/envs/reorder', { method: 'PUT', body: JSON.stringify({ ids: ids }) })
+            .then(function() {
+              applyLocalReorder(ids);
+              toast('顺序已更新', 'success');
+            })
+            .catch(function(err) {
+              toast('排序保存失败: ' + (err.message || '未知错误'), 'error');
+              renderUrls(content);
+            });
+        }
+      });
+      appState.sortables.push(s);
+    });
+  }
 
   function renderUrls(content) {
     var isPublic = !appState.currentUser;
@@ -3696,7 +3753,7 @@
       var canDelete = !!appState.currentUser;
       var canManage = hasPermission('delete');
 
-      var envFavs = favEnvs.map(function(e) { return { type: 'env', id: e.id, icon: 'fa-solid fa-server', name: e.name, data: e }; });
+      var envFavs = favEnvs.map(function(e) { return { type: 'env', id: e.id, icon: 'fa-solid fa-server', iconHtml: envBrandIconHtml(e), name: e.name, data: e }; });
       var toolFavs = favTools.map(function(t) {
         var iconHtml = t.icon && (t.icon.startsWith('/icons/') || t.icon.startsWith('http')) 
           ? t.icon 
@@ -3759,7 +3816,7 @@
                 return '<div class="fav-card" draggable="' + (f.type !== 'toolbox' ? 'true' : 'false') + '" data-type="' + f.type + '" data-id="' + f.id + '">' +
                   '<button class="fav-card-remove" data-type="' + f.type + '" data-id="' + f.id + '" title="取消收藏"><i class="fa-solid fa-xmark"></i></button>' +
                   '<div class="fav-card-icon ' + (f.isImage ? 'is-image' : '') + '">' +
-                    (f.isImage ? '<img src="' + escHtml(f.icon) + '" alt="">' : '<i class="' + escHtml(f.icon) + '"></i>') +
+                    (f.isImage ? '<img src="' + escHtml(f.icon) + '" alt="">' : (f.iconHtml || '<i class="' + escHtml(f.icon) + '"></i>')) +
                   '</div>' +
                   '<div class="fav-card-name">' + escHtml(f.name) + '</div>' +
                   '<div class="fav-card-badge">' + section.badge + '</div>' +
@@ -5266,7 +5323,7 @@
             results.innerHTML = data.envs.map(function(e) {
               var host = (e.accessType === 'domain' && e.domain) ? e.domain : e.ip;
               return '<div class="search-result-item" data-type="env" data-id="' + e.id + '">' +
-                '<span class="sr-icon"><i class="fa-solid fa-server"></i></span>' +
+                '<span class="sr-icon">' + envBrandIconHtml(e, '1em') + '</span>' +
                 '<div class="sr-info"><div class="sr-name">' + escHtml(e.name) + '</div><div class="sr-desc">' + escHtml(host) + '</div></div>' +
               '</div>';
             }).join('') + data.tools.map(function(t) {

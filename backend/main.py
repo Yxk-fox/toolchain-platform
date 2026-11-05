@@ -782,29 +782,33 @@ async def broadcast_status():
             connected_clients.difference_update(disconnected)
         await asyncio.sleep(15)
 
+def _html_response(path: Path):
+    """HTML 入口响应：禁止中间缓存（保留协商缓存），确保发版后用户立即拿到新版资源引用"""
+    return FileResponse(path, headers={"Cache-Control": "no-cache"})
+
 @app.get("/")
 async def root():
     # 门户首页：返回 index.html，由前端按登录态决定展示网址大全或登录后内容
     index_path = FRONTEND_DIR / "index.html"
     if index_path.exists():
-        return FileResponse(index_path)
+        return _html_response(index_path)
     login_path = FRONTEND_DIR / "login.html"
     if login_path.exists():
-        return FileResponse(login_path)
+        return _html_response(login_path)
     return JSONResponse({"message": "Toolchain Platform API v1.0", "status": "running"})
 
 @app.get("/login.html")
 async def login_page():
     login_path = FRONTEND_DIR / "login.html"
     if login_path.exists():
-        return FileResponse(login_path)
+        return _html_response(login_path)
     return JSONResponse(status_code=404, content={"error": "Not Found"})
 
 @app.get("/index.html")
 async def index_page():
     index_path = FRONTEND_DIR / "index.html"
     if index_path.exists():
-        return FileResponse(index_path)
+        return _html_response(index_path)
     return JSONResponse({"message": "Toolchain Platform API v1.0", "status": "running"})
 
 @app.get("/api")
@@ -906,6 +910,36 @@ async def create_env(env: EnvCreate, request: Request):
         new_env["subLinks"] = env.subLinks
     data["envs"].append(new_env); save_data(data)
     return new_env
+
+def apply_env_reorder(envs, ids):
+    """将全局 envs 数组中 ids 所占据的原有槽位，按 ids 的新顺序依次替换。
+    只影响 ids 覆盖的槽位，其余元素位置不动；支持分组内部分量重排。
+    返回过滤后有效的新顺序 ids。"""
+    valid = set(e["id"] for e in envs)
+    ids = [i for i in ids if i in valid]
+    if len(ids) < 2:
+        return None
+    slots = [idx for idx, e in enumerate(envs) if e["id"] in set(ids)]
+    by_id = {e["id"]: e for e in envs}
+    for slot, new_id in zip(slots, ids):
+        envs[slot] = by_id[new_id]
+    return ids
+
+class EnvReorder(BaseModel):
+    ids: list = []
+
+@app.put("/api/envs/reorder")
+async def reorder_envs(payload: EnvReorder, request: Request):
+    """按分组内的新顺序重排环境：ids 为某容器内全部 env id 的新顺序，
+    将全局 envs 数组中这些 id 占据的原有槽位依次替换为新顺序，其余元素不动。
+    注意：本路由需定义在 /api/envs/{env_id} 之前，避免被路径参数路由拦截。"""
+    user = require_auth(request); require_permission(user, "modify")
+    data = load_data()
+    ids = apply_env_reorder(data["envs"], payload.ids)
+    if ids is None:
+        raise HTTPException(status_code=400, detail="At least 2 valid env ids required")
+    save_data(data)
+    return {"message": "reordered", "ids": ids}
 
 class EnvUpdate(BaseModel):
     name: str = None; ip: str = None; port: int = None; path: str = None; description: str = None; protocol: str = None; group: str = None; subLinks: list = None; mine: str = None; accessType: str = None; domain: str = None
