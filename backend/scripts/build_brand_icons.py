@@ -131,6 +131,7 @@ CURATED = {
     "ugreen":      ("gen", "cloud", "#0068FF", ["绿联云", "绿联", "nas", "ug.link"]),
     "simone":      ("gen", "car", "#3B82F6", ["仿真", "模拟器"]),
     "mocktruck":   ("gen", "truck", "#7C3AED", []),
+    "feishu":      ("gen", "cloud", "#3370FF", ["飞书", "lark", "feishu"]),
     "server":      ("gen", "server", "#7C3AED", ["服务器", "host"]),
     "cloud":       ("gen", "cloud", "#0EA5E9", ["云端"]),
     "database":    ("gen", "database", "#0EA5E9", ["数据库", "db"]),

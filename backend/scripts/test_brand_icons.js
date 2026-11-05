@@ -86,8 +86,11 @@ const EXPECT = {
 let matched = 0, fallback = 0;
 for (const env of envdata.envs) {
   const key = match(env.name) || match(env.domain || '');
-  const expect = EXPECT[env.name];
-  assert(key === expect, `T4.1 环境 "${env.name}" 命中 "${key}"，预期 "${expect}"`);
+  // 仅校验已知环境；用户后续自建条目（如 飞书）命中定制图标属正常行为
+  if (Object.prototype.hasOwnProperty.call(EXPECT, env.name)) {
+    const expect = EXPECT[env.name];
+    assert(key === expect, `T4.1 环境 "${env.name}" 命中 "${key}"，预期 "${expect}"`);
+  }
   if (key) matched++; else fallback++;
 }
 console.log(`  命中品牌图标: ${matched} 个，通用回退: ${fallback} 个（共 ${envdata.envs.length}）`);

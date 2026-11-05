@@ -797,7 +797,15 @@
   }
 
   var _currentRenderRoute = null;
-  
+
+  // 强制刷新当前页面：绕过“同路由不重复渲染”守卫并使数据缓存失效，
+  // 供添加/编辑/删除等写操作成功后调用，确保页面立即展示最新数据
+  function refreshCurrentPage() {
+    _currentRenderRoute = null;          // 重置守卫，允许 renderRoute 重新渲染
+    invalidateDataCache();               // 数据缓存失效，强制重新拉取
+    renderRoute(getRoute());
+  }
+
   function renderRoute(route) {
     var content = $('#content');
     // 未登录：仅允许访问 urls 与 login；访问其他页面时回退到 urls，不再强制跳登录
@@ -1461,7 +1469,7 @@
         if (confirm('确定要删除该环境吗？')) {
           apiFetch('/envs/' + envId, { method: 'DELETE' }).then(function() {
             toast('环境已删除', 'success');
-            renderRoute('urls');
+            refreshCurrentPage();
           }).catch(function(err) {
             toast('删除失败: ' + err.message, 'error');
           });
@@ -1578,7 +1586,7 @@
       apiFetch('/envs', { method: 'POST', body: JSON.stringify(data) }).then(function() {
         toast('环境已添加', 'success');
         closeModal();
-        renderRoute('urls');
+        refreshCurrentPage();
       }).catch(function(err) {
         toast('添加失败: ' + err.message, 'error');
       });
@@ -1653,7 +1661,7 @@
       apiFetch('/envs/' + env.id, { method: 'PUT', body: JSON.stringify(data) }).then(function() {
         toast('环境已更新', 'success');
         closeModal();
-        renderRoute('urls');
+        refreshCurrentPage();
       }).catch(function(err) {
         toast('更新失败: ' + err.message, 'error');
       });
@@ -1724,7 +1732,7 @@
         appState.data.mineGroups = newGroups;
         toast('矿区分组已保存', 'success');
         closeModal();
-        renderRoute('urls');
+        refreshCurrentPage();
       }).catch(function(err) {
         toast('保存失败: ' + err.message, 'error');
       });
@@ -5291,6 +5299,13 @@
     var accessType = env.accessType || 'ip';
     var host = accessType === 'domain' ? env.domain : env.ip;
     if (!host) return '';
+    // 用户可能把协议一起填进域名（如 https://project.feishu.cn/），自动剥离并以其为准
+    var protoMatch = /^https?:\/\//i.exec(host);
+    if (protoMatch) {
+      proto = protoMatch[0].toLowerCase().indexOf('https') === 0 ? 'https' : 'http';
+      host = host.slice(protoMatch[0].length);
+    }
+    host = host.replace(/\/+$/, '');
     var url = proto + '://' + host;
     if (accessType === 'ip') {
       if (env.port && !(proto === 'http' && env.port === 80) && !(proto === 'https' && env.port === 443)) {
