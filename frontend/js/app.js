@@ -1311,7 +1311,7 @@
     return '<i class="' + (fallbackIcon || 'fa-solid fa-server') + '"></i>';
   }
 
-  function renderEnvCard(env, isFav, s, canModify, canDelete, simple) {
+  function renderEnvCard(env, isFav, s, canModify, canDelete, simple, isFrequent) {
     var host = (env.accessType === 'domain' && env.domain) ? env.domain : env.ip;
     var statusDot = '<span class="status-dot ' + s + '"></span>';
     var isOffline = s === 'offline';
@@ -1321,8 +1321,8 @@
     if (simple) {
       var openUrl = buildEnvUrl(env);
       var cardClickAttr = isOffline ? ' data-env-id="' + env.id + '" style="opacity:0.6;cursor:not-allowed;"' : ' data-simple-open-url="' + escHtml(openUrl) + '" data-env-id="' + env.id + '" style="cursor:pointer;"';
-      return '<div class="card card-simple' + offlineClass + (appState.batchMode ? ' batch-mode' : '') + '"' + cardClickAttr + '>' +
-        (appState.batchMode ? '<input type="checkbox" class="card-batch-check" data-env-id="' + env.id + '"' + (appState.batchSelected[env.id] ? ' checked' : '') + '>' : '') +
+      return '<div class="card card-simple' + offlineClass + ((appState.batchMode && !isFrequent) ? ' batch-mode' : '') + '"' + cardClickAttr + '>' +
+        ((appState.batchMode && !isFrequent) ? '<input type="checkbox" class="card-batch-check" data-env-id="' + env.id + '"' + (appState.batchSelected[env.id] ? ' checked' : '') + '>' : '') +
         (appState.currentUser ? '<button class="btn-icon fav-btn' + (isFav ? ' active' : '') + '" data-fav-type="env" data-fav-id="' + env.id + '" title="收藏"><i class="fa-solid fa-star"></i></button>' : '') +
         '<div class="card-header">' + dragHandle +
           '<span class="card-icon">' + envBrandIconHtml(env) + '</span>' +
@@ -1349,8 +1349,8 @@
         return '<a class="' + subLinkClass + '"' + subLinkAttrs + '><i class="fa-solid fa-arrow-up-right-from-square"></i> ' + escHtml(sl.name) + '</a>';
       }).join('') + '</div>';
     }
-    return '<div class="card' + offlineClass + (appState.batchMode ? ' batch-mode' : '') + '" data-env-id="' + env.id + '">' +
-      (appState.batchMode ? '<input type="checkbox" class="card-batch-check" data-env-id="' + env.id + '"' + (appState.batchSelected[env.id] ? ' checked' : '') + '>' : '') +
+    return '<div class="card' + offlineClass + ((appState.batchMode && !isFrequent) ? ' batch-mode' : '') + '" data-env-id="' + env.id + '">' +
+      ((appState.batchMode && !isFrequent) ? '<input type="checkbox" class="card-batch-check" data-env-id="' + env.id + '"' + (appState.batchSelected[env.id] ? ' checked' : '') + '>' : '') +
       (appState.currentUser ? '<button class="btn-icon fav-btn' + (isFav ? ' active' : '') + '" data-fav-type="env" data-fav-id="' + env.id + '" title="收藏"><i class="fa-solid fa-star"></i></button>' : '') +
       '<div class="card-header">' + dragHandle +
         '<span class="card-icon">' + envBrandIconHtml(env) + '</span>' +
@@ -1372,6 +1372,13 @@
         (appState.currentUser ? '<button class="btn btn-sm recycle-env-btn" data-env-id="' + env.id + '" data-env-name="' + escHtml(env.name) + '" title="申请回收"><i class="fa-solid fa-recycle"></i></button>' : '') +
       '</div>' +
     '</div>';
+  }
+
+  // 分组名列表（与 renderUrlsContent 渲染同源：envGroups 为空时回退默认三组）
+  function d_envGroupNames() {
+    var g = appState.data.envGroups || [];
+    if (g.length > 0) return g.filter(function(x) { return x.visible !== false; }).map(function(x) { return x.name; });
+    return ['环境', '服务', '其他'];
   }
 
   function renderUrlsContent(content, d) {
@@ -1408,8 +1415,9 @@
 
       // ===== 批量操作工具条（批量模式中显示） =====
       if (appState.batchMode && canDelete) {
+        var selCount = Object.keys(appState.batchSelected).filter(function(k) { return appState.batchSelected[k]; }).length;
         html += '<div class="batch-toolbar">' +
-          '<button class="btn btn-sm btn-danger" id="batchDeleteBtn"><i class="fa-solid fa-trash"></i> 删除选中 (<span id="batchCount">0</span>)</button>' +
+          '<button class="btn btn-sm btn-danger" id="batchDeleteBtn"><i class="fa-solid fa-trash"></i> 删除选中 (<span id="batchCount">' + selCount + '</span>)</button>' +
           '<button class="btn btn-sm" id="batchMoveBtn"><i class="fa-solid fa-folder-transfer"></i> 移动分组</button>' +
           '<span style="font-size:12px;color:var(--text-muted,#6b7280);">点击卡片勾选/取消</span>' +
         '</div>';
@@ -1427,7 +1435,7 @@
             '<div class="card-grid' + (isSimple ? ' card-grid-simple' : '') + '">' +
             freqEnvs.map(function(env) {
               var s = appState.envStatuses[env.id] || 'unknown';
-              return renderEnvCard(env, false, s, false, false, isSimple);
+              return renderEnvCard(env, false, s, false, false, isSimple, true);
             }).join('') + '</div></div>';
         }
       }
@@ -1569,6 +1577,7 @@
   }
 
   function bindUrlsEvents() {
+    var content = $('#content'); // 显式获取（原先依赖 id 命名访问的隐式全局，脆弱）
     // ===== 筛选下拉 =====
     var filterGroup = $('#filterGroup');
     if (filterGroup) filterGroup.addEventListener('change', function() { appState.urlFilters.group = this.value; renderUrls(content); });
@@ -1586,44 +1595,90 @@
       appState.batchSelected = {};
       renderUrls(content);
     });
+    // 从选中集提取有效 id 列表
+    function getBatchIds() {
+      return Object.keys(appState.batchSelected).filter(function(k) { return appState.batchSelected[k]; }).map(Number);
+    }
     var batchDeleteBtn = $('#batchDeleteBtn');
     if (batchDeleteBtn) batchDeleteBtn.addEventListener('click', function() {
-      var ids = Object.keys(appState.batchSelected).filter(function(k) { return appState.batchSelected[k]; }).map(Number);
+      var ids = getBatchIds();
       if (ids.length === 0) { toast('请先勾选要删除的环境', 'error'); return; }
+      if (batchDeleteBtn.disabled) return; // 防重复提交
       if (!confirm('确定删除选中的 ' + ids.length + ' 个环境吗？')) return;
-      Promise.all(ids.map(function(id) {
-        return apiFetch('/envs/' + id, { method: 'DELETE' });
-      })).then(function() {
-        toast('已删除 ' + ids.length + ' 个环境', 'success');
-        appState.batchMode = false;
-        appState.batchSelected = {};
-        refreshCurrentPage();
-      }).catch(function(err) {
-        toast('批量删除失败: ' + err.message, 'error');
+      batchDeleteBtn.disabled = true;
+      // allSettled：逐个删除，统计成功/失败，避免部分失败时误报整体失败
+      var settled = [];
+      var chain = Promise.resolve();
+      ids.forEach(function(id) {
+        chain = chain.then(function() {
+          return apiFetch('/envs/' + id, { method: 'DELETE' }).then(function() {
+            settled.push({ id: id, ok: true });
+          }).catch(function(err) {
+            settled.push({ id: id, ok: false, err: err && err.message });
+          });
+        });
+      });
+      chain.then(function() {
+        var okIds = settled.filter(function(r) { return r.ok; });
+        var failIds = settled.filter(function(r) { return !r.ok; });
+        // 从选中集移除已删除成功的（失败者保持选中便于重试）
+        okIds.forEach(function(r) { delete appState.batchSelected[r.id]; });
+        if (failIds.length === 0) {
+          toast('已删除 ' + okIds.length + ' 个环境', 'success');
+          appState.batchMode = false;
+          appState.batchSelected = {};
+        } else if (okIds.length === 0) {
+          toast('删除失败: ' + (failIds[0].err || '未知错误'), 'error');
+        } else {
+          toast('部分成功：已删 ' + okIds.length + ' 个，失败 ' + failIds.length + ' 个（失败项保持选中）', 'error');
+        }
         refreshCurrentPage();
       });
     });
     var batchMoveBtn = $('#batchMoveBtn');
     if (batchMoveBtn) batchMoveBtn.addEventListener('click', function() {
-      var ids = Object.keys(appState.batchSelected).filter(function(k) { return appState.batchSelected[k]; }).map(Number);
+      var ids = getBatchIds();
       if (ids.length === 0) { toast('请先勾选要移动的环境', 'error'); return; }
-      var groups = (appState.data.envGroups || []).map(function(g) { return g.name; });
+      // 与页面分组渲染同源：envGroups 为空时使用默认三组，避免下拉为空导致空操作
+      var groups = d_envGroupNames();
       var bodyHtml = '<div class="form-group"><label>移动到分组</label><select id="batchMoveTarget">' +
         groups.map(function(n) { return '<option value="' + escHtml(n) + '">' + escHtml(n) + '</option>'; }).join('') + '</select></div>' +
         '<div style="margin-top:16px;text-align:right;"><button class="btn btn-primary" id="batchMoveConfirm"><i class="fa-solid fa-check"></i> 移动</button></div>';
       showModal('移动 ' + ids.length + ' 个环境到分组', bodyHtml);
       $('#batchMoveConfirm').addEventListener('click', function() {
+        var confirmBtn = $('#batchMoveConfirm');
+        if (confirmBtn.disabled) return; // 防重复提交
         var target = $('#batchMoveTarget').value;
-        Promise.all(ids.map(function(id) {
-          return apiFetch('/envs/' + id, { method: 'PUT', body: JSON.stringify({ group: target }) });
-        })).then(function() {
-          toast('已移动 ' + ids.length + ' 个环境到「' + target + '」', 'success');
-          closeModal();
-          appState.batchMode = false;
-          appState.batchSelected = {};
+        if (!target) { toast('请选择目标分组', 'error'); return; }
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 移动中...';
+        var settled = [];
+        var chain = Promise.resolve();
+        ids.forEach(function(id) {
+          chain = chain.then(function() {
+            return apiFetch('/envs/' + id, { method: 'PUT', body: JSON.stringify({ group: target }) }).then(function() {
+              settled.push({ id: id, ok: true });
+            }).catch(function(err) {
+              settled.push({ id: id, ok: false, err: err && err.message });
+            });
+          });
+        });
+        chain.then(function() {
+          var okIds = settled.filter(function(r) { return r.ok; });
+          var failIds = settled.filter(function(r) { return !r.ok; });
+          if (failIds.length === 0) {
+            toast('已移动 ' + okIds.length + ' 个环境到「' + target + '」', 'success');
+            closeModal();
+            appState.batchMode = false;
+            appState.batchSelected = {};
+          } else if (okIds.length === 0) {
+            toast('移动失败: ' + (failIds[0].err || '未知错误'), 'error');
+            closeModal();
+          } else {
+            toast('部分成功：已移动 ' + okIds.length + ' 个，失败 ' + failIds.length + ' 个（失败项保持选中）', 'error');
+            closeModal();
+          }
           refreshCurrentPage();
-        }).catch(function(err) {
-          toast('批量移动失败: ' + err.message, 'error');
         });
       });
     });
@@ -1637,7 +1692,8 @@
       if (cnt) cnt.textContent = Object.keys(appState.batchSelected).filter(function(k) { return appState.batchSelected[k]; }).length;
     }
     if (appState.batchMode) {
-      content.querySelectorAll('.card[data-env-id]').forEach(function(card) {
+      // 排除"常用"行的镜像卡片（同 id 双卡会造成选中状态视觉不同步）
+      content.querySelectorAll('.env-group-section:not([data-group-id="__frequent"]) .card[data-env-id]').forEach(function(card) {
         card.addEventListener('click', function(e) {
           if (e.target.closest('button, a')) return;
           var id = parseInt(card.dataset.envId);
