@@ -2739,3 +2739,70 @@ input:checked + .toggle-slider:before {
   will-change: transform;
 }
 body.sortable-active { user-select: none; -webkit-user-select: none; }
+
+/* ============ 健康徽章与详情弹窗（可用性监控） ============ */
+.latency-badge, .cert-badge, .fail-reason-badge, .last-online-badge {
+  display: inline-block;
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 8px;
+  margin-left: 8px;
+  white-space: nowrap;
+}
+.latency-badge { background: #ecfdf5; color: #059669; }
+.latency-badge.latency-slow { background: #fef3c7; color: #b45309; }
+.cert-badge { background: #eff6ff; color: #2563eb; }
+.cert-badge.cert-danger { background: #fee2e2; color: #dc2626; animation: cert-blink 1.5s infinite; }
+.fail-reason-badge { background: #fee2e2; color: #b91c1c; }
+.last-online-badge { background: #f3f4f6; color: #6b7280; }
+[data-theme="dark"] .latency-badge { background: #064e3b; color: #6ee7b7; }
+[data-theme="dark"] .latency-badge.latency-slow { background: #78350f; color: #fcd34d; }
+[data-theme="dark"] .cert-badge { background: #1e3a8a; color: #93c5fd; }
+[data-theme="dark"] .cert-badge.cert-danger { background: #7f1d1d; color: #fca5a5; }
+[data-theme="dark"] .fail-reason-badge { background: #7f1d1d; color: #fca5a5; }
+[data-theme="dark"] .last-online-badge { background: #1f2937; color: #9ca3af; }
+@keyframes cert-blink { 50% { opacity: 0.55; } }
+
+.status-indicator[data-health-env] { cursor: pointer; }
+.status-indicator[data-health-env]:hover .status-text { text-decoration: underline; }
+
+.env-health-modal { padding: 4px 2px; }
+.env-health-title { display: flex; align-items: center; gap: 8px; font-size: 15px; margin-bottom: 12px; }
+.env-health-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.env-health-table td { padding: 7px 10px; border-bottom: 1px solid var(--border-color, #eee); }
+.env-health-table td:first-child { color: var(--text-muted, #6b7280); width: 96px; }
+.env-health-sparkline {
+  display: flex; align-items: flex-end; gap: 2px;
+  height: 44px; margin: 14px 2px 4px;
+  padding: 4px 6px; background: var(--bg-color, #f8fafc); border-radius: 6px;
+}
+.spark-bar { width: 8px; min-height: 4px; border-radius: 2px; transition: height 0.2s ease; }
+.env-health-spark-caption { font-size: 11px; color: var(--text-muted, #6b7280); text-align: center; }
+
+/* ============ 网址大全筛选工具栏 ============ */
+.urls-filter-bar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; align-items: center; }
+.urls-filter-bar select {
+  padding: 7px 10px; border: 1px solid var(--border-color, #ddd); border-radius: 6px;
+  background: var(--card-bg, #fff); color: var(--text-color, #1f2937); font-size: 13px;
+}
+.urls-filter-bar .filter-label { font-size: 12px; color: var(--text-muted, #6b7280); }
+
+/* ============ 分组折叠 ============ */
+.env-group-title { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px; }
+.env-group-title .group-chevron { transition: transform 0.2s ease; font-size: 12px; color: var(--text-muted, #6b7280); }
+.env-group-section.collapsed .group-chevron { transform: rotate(-90deg); }
+.env-group-section.collapsed .card-grid,
+.env-group-section.collapsed .mine-group-section { display: none; }
+
+/* ============ 网址大全批量操作 ============ */
+.batch-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+.card-batch-check {
+  position: absolute; top: 8px; right: 30px; z-index: 3;
+  width: 16px; height: 16px; accent-color: var(--primary-color, #4f46e5);
+}
+.batch-mode .card .fav-btn { display: none; }
+
+/* 搜索结果高亮 */
+.sr-hl { background: #fef08a; color: inherit; border-radius: 2px; padding: 0 1px; }
+[data-theme="dark"] .sr-hl { background: #713f12; color: #fde047; }

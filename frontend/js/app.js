@@ -29,7 +29,12 @@
     dataLoaded: false,
     dataLoadTime: 0,
     dataLoadPromise: null,
-    dataLoadMode: ''
+    dataLoadMode: '',
+    envHealth: {},                                   // env id -> {latency_ms, reason, http_code, cert_days, last_online_at}
+    urlFilters: { group: '', mine: '', status: '' }, // 网址大全筛选
+    collapsedGroups: {},                             // 分组折叠状态（localStorage 持久化）
+    batchMode: false,
+    batchSelected: {}                                 // 网址大全批量操作选中集
   };
 
   var PAGE_CONFIG = {
@@ -510,6 +515,13 @@
             var statuses = JSON.parse(event.data);
             statuses.forEach(function(s) {
               appState.envStatuses[s.id] = s.status;
+              appState.envHealth[s.id] = {
+                latency_ms: s.latency_ms,
+                reason: s.reason,
+                http_code: s.http_code,
+                cert_days: s.cert_days,
+                last_online_at: s.last_online_at
+              };
             });
             updateStatusIndicators();
             // T2.1：状态变化可能产生新告警，刷新铃铛徽章
@@ -547,6 +559,13 @@
       if (statusData.env_statuses) {
         statusData.env_statuses.forEach(function(s) {
           appState.envStatuses[s.id] = s.status;
+          appState.envHealth[s.id] = {
+            latency_ms: s.latency_ms,
+            reason: s.reason,
+            http_code: s.http_code,
+            cert_days: s.cert_days,
+            last_online_at: s.last_online_at
+          };
         });
         updateStatusIndicators();
       }
@@ -637,6 +656,23 @@
     setTextFor('.status-indicator', '.status-text');
     setTextFor('.env-status-item', '.env-status-text');
     setTextFor('.card-meta-simple', '.status-text-simple');
+    // 健康徽章精准打点：替换/重建每张卡片的徽章容器，不整页重绘
+    $$('.card[data-env-id]').forEach(function(card) {
+      var envId = parseInt(card.dataset.envId);
+      if (!envId || !appState.envHealth[envId]) return;
+      var st = appState.envStatuses[envId];
+      var meta = card.querySelector('.card-meta');
+      if (!meta) return;
+      var oldBox = meta.querySelector('.health-badges');
+      if (oldBox) oldBox.remove();
+      var badges = envHealthBadges(envId, st === 'offline');
+      if (badges) {
+        var box = document.createElement('span');
+        box.className = 'health-badges';
+        box.innerHTML = badges;
+        meta.appendChild(box);
+      }
+    });
     $$('.open-env-btn, .btn-disabled[data-env-id]').forEach(function(btn) {
       var id = parseInt(btn.dataset.envId);
       if (id && appState.envStatuses[id]) {
@@ -1227,6 +1263,45 @@
     });
   }
 
+  // ===== 健康展示辅助（延迟/证书/失败原因/上次在线） =====
+  var REASON_TEXT = { timeout: '连接超时', refused: '连接被拒绝', dns: '域名解析失败', unreachable: '网络不可达', error: '连接异常', nohost: '未配置地址' };
+
+  function timeAgo(iso) {
+    if (!iso) return '';
+    var diff = Date.now() - new Date(iso).getTime();
+    if (diff < 0) return '刚刚';
+    var m = Math.floor(diff / 60000);
+    if (m < 1) return '刚刚';
+    if (m < 60) return m + ' 分钟前';
+    var h = Math.floor(m / 60);
+    if (h < 24) return h + ' 小时前';
+    var d = Math.floor(h / 24);
+    return d + ' 天前';
+  }
+
+  // 卡片 meta 行的健康徽章：延迟 ms（慢响应黄色）、证书剩余天数（临期红色）、失败原因/上次在线
+  function envHealthBadges(envId, isOffline) {
+    var h = appState.envHealth[envId];
+    if (!h) return '';
+    var html = '';
+    if (h.latency_ms != null && h.latency_ms > 0 && !isOffline) {
+      var slow = h.latency_ms > 500;
+      html += '<span class="latency-badge' + (slow ? ' latency-slow' : '') + '"' + (slow ? ' title="响应较慢"' : '') + '>' + h.latency_ms + 'ms</span>';
+    }
+    if (h.cert_days != null && h.cert_days <= 30) {
+      html += '<span class="cert-badge' + (h.cert_days <= 7 ? ' cert-danger' : '') + '" title="HTTPS 证书剩余 ' + h.cert_days + ' 天">证书 ' + h.cert_days + ' 天</span>';
+    }
+    if (isOffline) {
+      if (h.reason && REASON_TEXT[h.reason]) {
+        html += '<span class="fail-reason-badge" title="失败原因">' + REASON_TEXT[h.reason] + '</span>';
+      }
+      if (h.last_online_at) {
+        html += '<span class="last-online-badge" title="上次在线时间">上次在线 ' + timeAgo(h.last_online_at) + '</span>';
+      }
+    }
+    return html;
+  }
+
   // 品牌图标：按名称/域名检索（uil 图标库优先，缺失回退 simple-icons），无匹配时返回 fa 服务器图标
   function envBrandIconHtml(env, size, fallbackIcon) {
     if (window.BrandIcons) {
@@ -1246,7 +1321,8 @@
     if (simple) {
       var openUrl = buildEnvUrl(env);
       var cardClickAttr = isOffline ? ' data-env-id="' + env.id + '" style="opacity:0.6;cursor:not-allowed;"' : ' data-simple-open-url="' + escHtml(openUrl) + '" data-env-id="' + env.id + '" style="cursor:pointer;"';
-      return '<div class="card card-simple' + offlineClass + '"' + cardClickAttr + '>' +
+      return '<div class="card card-simple' + offlineClass + (appState.batchMode ? ' batch-mode' : '') + '"' + cardClickAttr + '>' +
+        (appState.batchMode ? '<input type="checkbox" class="card-batch-check" data-env-id="' + env.id + '"' + (appState.batchSelected[env.id] ? ' checked' : '') + '>' : '') +
         (appState.currentUser ? '<button class="btn-icon fav-btn' + (isFav ? ' active' : '') + '" data-fav-type="env" data-fav-id="' + env.id + '" title="收藏"><i class="fa-solid fa-star"></i></button>' : '') +
         '<div class="card-header">' + dragHandle +
           '<span class="card-icon">' + envBrandIconHtml(env) + '</span>' +
@@ -1256,6 +1332,7 @@
           statusDot +
           '<span class="status-text-simple">' + getStatusText(s) + '</span>' +
           '<span class="card-ip-simple">' + escHtml(host) + '</span>' +
+          '<span class="health-badges">' + envHealthBadges(env.id, isOffline) + '</span>' +
         '</div>' +
       '</div>';
     }
@@ -1272,20 +1349,23 @@
         return '<a class="' + subLinkClass + '"' + subLinkAttrs + '><i class="fa-solid fa-arrow-up-right-from-square"></i> ' + escHtml(sl.name) + '</a>';
       }).join('') + '</div>';
     }
-    return '<div class="card' + offlineClass + '" data-env-id="' + env.id + '">' +
+    return '<div class="card' + offlineClass + (appState.batchMode ? ' batch-mode' : '') + '" data-env-id="' + env.id + '">' +
+      (appState.batchMode ? '<input type="checkbox" class="card-batch-check" data-env-id="' + env.id + '"' + (appState.batchSelected[env.id] ? ' checked' : '') + '>' : '') +
       (appState.currentUser ? '<button class="btn-icon fav-btn' + (isFav ? ' active' : '') + '" data-fav-type="env" data-fav-id="' + env.id + '" title="收藏"><i class="fa-solid fa-star"></i></button>' : '') +
       '<div class="card-header">' + dragHandle +
         '<span class="card-icon">' + envBrandIconHtml(env) + '</span>' +
         '<span class="card-title">' + escHtml(env.name) + '</span>' +
       '</div>' +
       '<div class="card-meta">' +
-        '<span class="status-indicator"><span class="dot ' + s + '" data-env-id="' + env.id + '"></span><span class="status-text">' + getStatusText(s) + '</span></span>' +
+        '<span class="status-indicator" data-health-env="' + env.id + '" title="点击查看健康详情"><span class="dot ' + s + '" data-env-id="' + env.id + '"></span><span class="status-text">' + getStatusText(s) + '</span></span>' +
         '<span style="margin-left:12px;font-family:monospace;">' + escHtml(host) + '</span>' +
+        '<span class="health-badges">' + envHealthBadges(env.id, isOffline) + '</span>' +
       '</div>' +
       '<div class="card-desc">' + escHtml(env.description || '') + '</div>' +
       subLinksHtml +
       '<div class="card-actions">' +
         '<button class="btn btn-sm copy-ip-btn" data-ip="' + escHtml(host) + '"><i class="fa-solid fa-copy"></i> ' + (env.accessType === 'domain' ? '复制域名' : '复制IP') + '</button>' +
+        (isOffline ? '' : '<button class="btn btn-sm copy-url-btn" data-url="' + escHtml(buildEnvUrl(env)) + '" title="复制完整 URL"><i class="fa-solid fa-link"></i> 复制URL</button>') +
         '<button class="btn btn-sm ' + (isOffline ? 'btn-disabled' : 'btn-primary open-env-btn') + '" data-url="' + escHtml(buildEnvUrl(env)) + '" data-env-id="' + env.id + '"' + (isOffline ? ' disabled title="无法连接"' : '') + '><i class="fa-solid fa-arrow-up-right-from-square"></i> ' + (isOffline ? '无法连接' : '打开') + '</button>' +
         (canModify ? '<button class="btn btn-sm edit-env-btn" data-env-id="' + env.id + '"><i class="fa-solid fa-pen-to-square"></i> 编辑</button>' : '') +
         (canDelete ? '<button class="btn btn-sm btn-danger delete-env-btn" data-env-id="' + env.id + '"><i class="fa-solid fa-trash"></i> 删除</button>' : '') +
@@ -1314,20 +1394,66 @@
         '</h2>' +
         (canAdd ? '<div style="margin-bottom:16px;"><button class="btn btn-primary" id="addEnvBtn"><i class="fa-solid fa-plus"></i> 新增</button> ' + (canModify ? '<button class="btn btn-primary" id="manageMineGroupsBtn"><i class="fa-solid fa-object-group"></i> 管理矿区分组</button>' : '') + '</div>' : '');
 
+      // ===== 筛选工具栏（分组/矿区/状态） =====
+      var f = appState.urlFilters;
+      var groupNames = groups.map(function(g) { return g.name; });
+      var mineNames = mineGroups.map(function(g) { return g.name; });
+      html += '<div class="urls-filter-bar">' +
+        '<select id="filterGroup"><option value="">全部分组</option>' + groupNames.map(function(n) { return '<option value="' + escHtml(n) + '"' + (f.group === n ? ' selected' : '') + '>' + escHtml(n) + '</option>'; }).join('') + '</select>' +
+        (mineNames.length > 0 ? '<select id="filterMine"><option value="">全部矿区</option>' + mineNames.map(function(n) { return '<option value="' + escHtml(n) + '"' + (f.mine === n ? ' selected' : '') + '>' + escHtml(n) + '</option>'; }).join('') + '</select>' : '') +
+        '<select id="filterStatus"><option value="">全部状态</option><option value="online"' + (f.status === 'online' ? ' selected' : '') + '>仅在线</option><option value="offline"' + (f.status === 'offline' ? ' selected' : '') + '>仅离线</option></select>' +
+        (f.group || f.mine || f.status ? '<button class="btn btn-sm" id="clearFiltersBtn"><i class="fa-solid fa-xmark"></i> 清除筛选</button>' : '') +
+        (canDelete ? '<button class="btn btn-sm ' + (appState.batchMode ? 'btn-primary' : 'btn-secondary') + '" id="batchModeBtn" style="margin-left:auto;"><i class="fa-solid fa-list-check"></i> ' + (appState.batchMode ? '退出批量' : '批量管理') + '</button>' : '') +
+        '</div>';
+
+      // ===== 批量操作工具条（批量模式中显示） =====
+      if (appState.batchMode && canDelete) {
+        html += '<div class="batch-toolbar">' +
+          '<button class="btn btn-sm btn-danger" id="batchDeleteBtn"><i class="fa-solid fa-trash"></i> 删除选中 (<span id="batchCount">0</span>)</button>' +
+          '<button class="btn btn-sm" id="batchMoveBtn"><i class="fa-solid fa-folder-transfer"></i> 移动分组</button>' +
+          '<span style="font-size:12px;color:var(--text-muted,#6b7280);">点击卡片勾选/取消</span>' +
+        '</div>';
+      }
+
+      // ===== 常用入口行（按访问历史频次 Top5，登录用户） =====
+      if (appState.currentUser && d.history && d.history.length > 0) {
+        var freq = {};
+        d.history.forEach(function(h) { if (h.type === 'env') freq[h.id] = (freq[h.id] || 0) + 1; });
+        var topIds = Object.keys(freq).sort(function(a, b) { return freq[b] - freq[a]; }).slice(0, 5).map(Number);
+        var freqEnvs = topIds.map(function(id) { return d.envs.find(function(e) { return e.id === id; }); }).filter(Boolean);
+        if (freqEnvs.length >= 2) {
+          html += '<div class="env-group-section" data-group-id="__frequent">' +
+            '<h3 class="env-group-title"><i class="fa-solid fa-fire" style="color:#f59e0b;"></i> 常用</h3>' +
+            '<div class="card-grid' + (isSimple ? ' card-grid-simple' : '') + '">' +
+            freqEnvs.map(function(env) {
+              var s = appState.envStatuses[env.id] || 'unknown';
+              return renderEnvCard(env, false, s, false, false, isSimple);
+            }).join('') + '</div></div>';
+        }
+      }
+
       function isCloudEnv(env) {
         var name = (env.name || '').toLowerCase();
         return name.indexOf('云端') !== -1;
       }
 
+      // 折叠状态恢复（localStorage 持久化）
+      try { appState.collapsedGroups = JSON.parse(localStorage.getItem('tcp_collapsedGroups') || '{}'); } catch (e) { appState.collapsedGroups = {}; }
+
+      var f = appState.urlFilters;
       groups.forEach(function(g) {
+        if (f.group && g.name !== f.group) return; // 分组筛选
         var groupEnvs = d.envs.filter(function(env) { return (env.group || '环境') === g.name; });
+        if (f.mine) groupEnvs = groupEnvs.filter(function(env) { return (env.mine || '') === f.mine; });       // 矿区筛选
+        if (f.status) groupEnvs = groupEnvs.filter(function(env) { return (appState.envStatuses[env.id] || 'unknown') === f.status; }); // 状态筛选
         if (isSimple && !isGuest) {
           groupEnvs = groupEnvs.filter(function(env) { return !isCloudEnv(env); });
         }
         if (groupEnvs.length === 0) return;
 
-        var groupHtml = '<div class="env-group-section" data-group-id="' + escHtml(g.id) + '">' +
-          '<h3 class="env-group-title"><i class="fa-solid fa-folder-open"></i> ' + escHtml(g.name) + '</h3>';
+        var collapsed = appState.collapsedGroups[g.name] ? ' collapsed' : '';
+        var groupHtml = '<div class="env-group-section' + collapsed + '" data-group-id="' + escHtml(g.id) + '" data-group-name="' + escHtml(g.name) + '">' +
+          '<h3 class="env-group-title"><i class="fa-solid fa-chevron-down group-chevron"></i><i class="fa-solid fa-folder-open"></i> ' + escHtml(g.name) + ' <span style="font-weight:400;font-size:12px;color:var(--text-muted,#6b7280);">(' + groupEnvs.length + ')</span></h3>';
         var groupInnerHtml = '';
 
         if (g.name === '环境' && mineGroups.length > 0) {
@@ -1443,6 +1569,121 @@
   }
 
   function bindUrlsEvents() {
+    // ===== 筛选下拉 =====
+    var filterGroup = $('#filterGroup');
+    if (filterGroup) filterGroup.addEventListener('change', function() { appState.urlFilters.group = this.value; renderUrls(content); });
+    var filterMine = $('#filterMine');
+    if (filterMine) filterMine.addEventListener('change', function() { appState.urlFilters.mine = this.value; renderUrls(content); });
+    var filterStatus = $('#filterStatus');
+    if (filterStatus) filterStatus.addEventListener('change', function() { appState.urlFilters.status = this.value; renderUrls(content); });
+    var clearFiltersBtn = $('#clearFiltersBtn');
+    if (clearFiltersBtn) clearFiltersBtn.addEventListener('click', function() { appState.urlFilters = { group: '', mine: '', status: '' }; renderUrls(content); });
+
+    // ===== 批量模式 =====
+    var batchModeBtn = $('#batchModeBtn');
+    if (batchModeBtn) batchModeBtn.addEventListener('click', function() {
+      appState.batchMode = !appState.batchMode;
+      appState.batchSelected = {};
+      renderUrls(content);
+    });
+    var batchDeleteBtn = $('#batchDeleteBtn');
+    if (batchDeleteBtn) batchDeleteBtn.addEventListener('click', function() {
+      var ids = Object.keys(appState.batchSelected).filter(function(k) { return appState.batchSelected[k]; }).map(Number);
+      if (ids.length === 0) { toast('请先勾选要删除的环境', 'error'); return; }
+      if (!confirm('确定删除选中的 ' + ids.length + ' 个环境吗？')) return;
+      Promise.all(ids.map(function(id) {
+        return apiFetch('/envs/' + id, { method: 'DELETE' });
+      })).then(function() {
+        toast('已删除 ' + ids.length + ' 个环境', 'success');
+        appState.batchMode = false;
+        appState.batchSelected = {};
+        refreshCurrentPage();
+      }).catch(function(err) {
+        toast('批量删除失败: ' + err.message, 'error');
+        refreshCurrentPage();
+      });
+    });
+    var batchMoveBtn = $('#batchMoveBtn');
+    if (batchMoveBtn) batchMoveBtn.addEventListener('click', function() {
+      var ids = Object.keys(appState.batchSelected).filter(function(k) { return appState.batchSelected[k]; }).map(Number);
+      if (ids.length === 0) { toast('请先勾选要移动的环境', 'error'); return; }
+      var groups = (appState.data.envGroups || []).map(function(g) { return g.name; });
+      var bodyHtml = '<div class="form-group"><label>移动到分组</label><select id="batchMoveTarget">' +
+        groups.map(function(n) { return '<option value="' + escHtml(n) + '">' + escHtml(n) + '</option>'; }).join('') + '</select></div>' +
+        '<div style="margin-top:16px;text-align:right;"><button class="btn btn-primary" id="batchMoveConfirm"><i class="fa-solid fa-check"></i> 移动</button></div>';
+      showModal('移动 ' + ids.length + ' 个环境到分组', bodyHtml);
+      $('#batchMoveConfirm').addEventListener('click', function() {
+        var target = $('#batchMoveTarget').value;
+        Promise.all(ids.map(function(id) {
+          return apiFetch('/envs/' + id, { method: 'PUT', body: JSON.stringify({ group: target }) });
+        })).then(function() {
+          toast('已移动 ' + ids.length + ' 个环境到「' + target + '」', 'success');
+          closeModal();
+          appState.batchMode = false;
+          appState.batchSelected = {};
+          refreshCurrentPage();
+        }).catch(function(err) {
+          toast('批量移动失败: ' + err.message, 'error');
+        });
+      });
+    });
+    // 批量勾选：点击卡片或直接勾选 checkbox 均可切换选中状态
+    function syncBatchUI(card, id) {
+      var on = !!appState.batchSelected[id];
+      var cb = card.querySelector('.card-batch-check');
+      if (cb) cb.checked = on;
+      card.style.outline = on ? '2px solid var(--primary-color,#4f46e5)' : '';
+      var cnt = $('#batchCount');
+      if (cnt) cnt.textContent = Object.keys(appState.batchSelected).filter(function(k) { return appState.batchSelected[k]; }).length;
+    }
+    if (appState.batchMode) {
+      content.querySelectorAll('.card[data-env-id]').forEach(function(card) {
+        card.addEventListener('click', function(e) {
+          if (e.target.closest('button, a')) return;
+          var id = parseInt(card.dataset.envId);
+          appState.batchSelected[id] = !appState.batchSelected[id];
+          syncBatchUI(card, id);
+        });
+        var cb = card.querySelector('.card-batch-check');
+        if (cb) cb.addEventListener('click', function(e) { e.stopPropagation(); });
+        if (cb) cb.addEventListener('change', function() {
+          var id = parseInt(card.dataset.envId);
+          appState.batchSelected[id] = cb.checked;
+          syncBatchUI(card, id);
+        });
+      });
+    }
+
+    // ===== 分组折叠（点击标题切换，localStorage 持久化） =====
+    $$('.env-group-title').forEach(function(title) {
+      title.addEventListener('click', function(e) {
+        if (e.target.closest('button, a, input, .drag-handle')) return;
+        var section = title.closest('.env-group-section');
+        if (!section || section.dataset.groupId === '__frequent') return; // 常用行不折叠
+        var name = section.dataset.groupName;
+        if (!name) return;
+        section.classList.toggle('collapsed');
+        appState.collapsedGroups[name] = section.classList.contains('collapsed');
+        try { localStorage.setItem('tcp_collapsedGroups', JSON.stringify(appState.collapsedGroups)); } catch (err) {}
+      });
+    });
+
+    $$('.copy-url-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        navigator.clipboard.writeText(btn.dataset.url).then(function() {
+          toast('完整URL已复制', 'success');
+        }).catch(function() {
+          toast('复制失败', 'error');
+        });
+      });
+    });
+    $$('.status-indicator[data-health-env]').forEach(function(el) {
+      el.addEventListener('click', function(e) {
+        e.stopPropagation();
+        showEnvHealthModal(parseInt(el.dataset.healthEnv));
+      });
+    });
     $$('.copy-ip-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
         navigator.clipboard.writeText(btn.dataset.ip).then(function() {
@@ -1525,6 +1766,49 @@
         toast(appState.hideOfflineEnvs ? '已隐藏离线环境' : '已显示全部环境', 'success');
       });
     }
+  }
+
+  // 健康详情弹窗：当前探测 + 24h/7d 可用率 + 最近巡检样本（含迷你趋势条）
+  function showEnvHealthModal(envId) {
+    if (!envId) return;
+    showModal('健康详情', '<div style="text-align:center;padding:30px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:22px;color:var(--primary-color);"></i><p style="margin-top:10px;">加载中...</p></div>');
+    apiFetch('/envs/' + envId + '/health').then(function(h) {
+      if (!h) { closeModal(); return; }
+      var statusText = getStatusText(h.status || 'unknown');
+      var statusColor = h.status === 'online' ? 'var(--online-color, #22c55e)' : (h.status === 'offline' ? 'var(--offline-color, #ef4444)' : '#9ca3af');
+      var rows = [
+        ['当前状态', '<span style="color:' + statusColor + ';font-weight:600;">● ' + statusText + '</span>'],
+        ['响应延迟', h.latency_ms != null ? h.latency_ms + ' ms' : '-'],
+        ['失败原因', (h.reason && REASON_TEXT[h.reason]) ? REASON_TEXT[h.reason] : '-'],
+        ['HTTP 状态码', h.http_code != null ? h.http_code : '-'],
+        ['证书剩余', h.cert_days != null ? h.cert_days + ' 天' + (h.cert_days <= 7 ? '（即将到期！）' : '') : '-'],
+        ['上次在线', h.last_online_at ? (formatDate(h.last_online_at) + '（' + timeAgo(h.last_online_at) + '）') : '-'],
+        ['24h 可用率', h.uptime_24h != null ? h.uptime_24h + '%' : '暂无数据'],
+        ['7天可用率', h.uptime_7d != null ? h.uptime_7d + '%' : '暂无数据']
+      ];
+      var html = '<div class="env-health-modal">' +
+        '<div class="env-health-title">' + envBrandIconHtml(appState.data.envs.find(function(e) { return e.id === envId; }) || { name: h.name }) + ' <b>' + escHtml(h.name || ('环境 #' + envId)) + '</b></div>' +
+        '<table class="env-health-table">' + rows.map(function(r) {
+          return '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>';
+        }).join('') + '</table>';
+      if (h.samples && h.samples.length > 0) {
+        // 迷你趋势条：最近样本的在线/延迟可视化（高度∝延迟，绿色在线/灰色离线）
+        var maxLat = Math.max.apply(null, h.samples.map(function(s) { return s.latency_ms || 1; }));
+        html += '<div class="env-health-sparkline">' + h.samples.map(function(s) {
+          var ratio = s.status === 'online' ? Math.max(20, Math.round((s.latency_ms || 1) / maxLat * 100)) : 100;
+          var color = s.status === 'online' ? 'var(--online-color, #22c55e)' : '#e5e7eb';
+          return '<div class="spark-bar" style="height:' + ratio + '%;background:' + color + ';" title="' + formatDate(s.timestamp) + ' ' + (s.status === 'online' ? '在线 ' + (s.latency_ms != null ? s.latency_ms + 'ms' : '') : '离线') + '"></div>';
+        }).join('') + '</div>' +
+        '<div class="env-health-spark-caption">最近 ' + h.samples.length + ' 次巡检（左旧右新）</div>';
+      }
+      html += '</div>';
+      $('#modalBox').innerHTML = '<div class="modal-header"><h3><i class="fa-solid fa-heart-pulse" style="color:var(--online-color,#22c55e);"></i> 健康详情</h3><button class="modal-close" id="modalCloseBtn"><i class="fa-solid fa-xmark"></i></button></div><div class="modal-body">' + html + '</div>';
+      var closeBtn = $('#modalCloseBtn');
+      if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    }).catch(function(err) {
+      closeModal();
+      toast('获取健康详情失败: ' + err.message, 'error');
+    });
   }
 
   function showEnvAddModal() {
@@ -5330,6 +5614,13 @@
         results.classList.add('hidden');
         return;
       }
+      // 高亮匹配文本（防 XSS：先转义再插 mark）
+      var hl = function(text) {
+        var esc = escHtml(text || '');
+        try {
+          return esc.replace(new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi'), '<mark class="sr-hl">$1</mark>');
+        } catch (e) { return esc; }
+      };
       debounceTimer = setTimeout(function() {
         apiFetch('/search?q=' + encodeURIComponent(q)).then(function(data) {
           if (data.envs.length === 0 && data.tools.length === 0) {
@@ -5339,12 +5630,12 @@
               var host = (e.accessType === 'domain' && e.domain) ? e.domain : e.ip;
               return '<div class="search-result-item" data-type="env" data-id="' + e.id + '">' +
                 '<span class="sr-icon">' + envBrandIconHtml(e, '1em') + '</span>' +
-                '<div class="sr-info"><div class="sr-name">' + escHtml(e.name) + '</div><div class="sr-desc">' + escHtml(host) + '</div></div>' +
+                '<div class="sr-info"><div class="sr-name">' + hl(e.name) + '</div><div class="sr-desc">' + hl(host) + '</div></div>' +
               '</div>';
             }).join('') + data.tools.map(function(t) {
               return '<div class="search-result-item" data-type="tool" data-id="' + t.id + '">' +
                 '<span class="sr-icon"><i class="' + escHtml(t.icon) + '"></i></span>' +
-                '<div class="sr-info"><div class="sr-name">' + escHtml(t.name) + '</div><div class="sr-desc">' + escHtml(t.description) + '</div></div>' +
+                '<div class="sr-info"><div class="sr-name">' + hl(t.name) + '</div><div class="sr-desc">' + hl(t.description) + '</div></div>' +
               '</div>';
             }).join('');
           }
@@ -5354,6 +5645,13 @@
           results.classList.remove('hidden');
         });
       }, 300);
+    });
+
+    // 回车打开第一个搜索结果
+    input.addEventListener('keydown', function(e) {
+      if (e.key !== 'Enter') return;
+      var first = results.querySelector('.search-result-item');
+      if (first) first.click();
     });
 
     input.addEventListener('focus', function() {

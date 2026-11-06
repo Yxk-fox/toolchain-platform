@@ -7,7 +7,8 @@
 @Desc    :  伯镭工具链平台后端主服务，基于FastAPI实现，提供环境管理、工具管理、用户权限、
            状态检测、离线告警、资源回收、服务目录、工具箱等核心功能API
 '''
-import asyncio, hashlib, json, os, secrets, shutil, socket, subprocess, threading, time
+import asyncio, hashlib, json, os, secrets, shutil, socket, ssl, subprocess, threading, time
+import urllib.error, urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
@@ -126,7 +127,7 @@ def _default_app_data():
     }
 
 def _default_error_data():
-    return {"alerts": [], "inspection_history": [], "recycle_requests": []}
+    return {"alerts": [], "inspection_history": [], "recycle_requests": [], "env_health": {}}
 
 def _default_service_data():
     return {"services": [], "service_dependencies": []}
@@ -154,7 +155,7 @@ def _default_settings_data():
 MODULES = {
     "user":     ("userdata.json",     ["users", "tokens", "permission_grants"], _default_user_data),
     "app":      ("appdata.json",      ["tools", "categories", "tool_company_groups", "favorites", "user_favorites", "history", "quick_entries", "user_quick_entries"], _default_app_data),
-    "error":    ("errordata.json",    ["alerts", "inspection_history", "recycle_requests"], _default_error_data),
+    "error":    ("errordata.json",    ["alerts", "inspection_history", "recycle_requests", "env_health"], _default_error_data),
     "service":  ("servicedata.json",  ["services", "service_dependencies"], _default_service_data),
     "env":      ("envdata.json",      ["envs", "env_groups"], _default_env_data),
     "program":  ("programdata.json",  ["programs", "program_categories", "scripts"], _default_program_data),
@@ -631,17 +632,109 @@ def check_tcp_port(host, port, timeout=0.8):
         return False
 
 def check_env_reachable(env):
+    r = probe_env(env)
+    return r["status"] == "online"
+
+def _check_tcp(host, port, timeout=0.8):
+    """TCP 探测：返回 (ok, latency_ms, reason)。reason: timeout/refused/dns/error"""
+    start = time.time()
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        result = sock.connect_ex((host, port))
+        latency = int((time.time() - start) * 1000)
+        sock.close()
+        if result == 0:
+            return True, latency, None
+        # 细分失败原因
+        if result == 10061 or result == 111:
+            reason = "refused"
+        elif result == 10060 or result == 110:
+            reason = "timeout"
+        else:
+            reason = "refused" if result in (10061, 111) else "unreachable"
+        return False, latency, reason
+    except socket.timeout:
+        return False, int((time.time() - start) * 1000), "timeout"
+    except socket.gaierror:
+        return False, 0, "dns"
+    except Exception:
+        return False, int((time.time() - start) * 1000), "error"
+
+def _check_http_status(url, timeout=3.0):
+    """HTTP 状态码探测（域名条目）：返回状态码或 None（探测失败）"""
+    try:
+        req = urllib.request.Request(url, method="GET", headers={"User-Agent": "ToolchainProbe/1.0"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status
+    except urllib.error.HTTPError as e:
+        return e.code  # 4xx/5xx 也是有效状态码
+    except Exception:
+        return None
+
+def _check_cert_days(host, port=443, timeout=3.0):
+    """HTTPS 证书剩余天数：取服务端证书 notAfter；失败返回 None"""
+    try:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        with socket.create_connection((host, port), timeout=timeout) as sock:
+            with ctx.wrap_socket(sock, server_hostname=host) as ss:
+                cert = ss.getpeercert(binary_form=False)
+        if not cert:
+            return None
+        not_after = cert.get("notAfter")
+        if not not_after:
+            return None
+        expires = ssl.cert_time_to_seconds(not_after)
+        return int((expires - time.time()) / 86400)
+    except Exception:
+        return None
+
+def probe_env(env):
+    """富结果探测：在线状态 + 延迟ms + 失败原因 + HTTP状态码 + 证书剩余天数"""
     access_type = env.get("accessType", "ip")
     host = env.get("domain", "") if access_type == "domain" else env.get("ip", "")
-    port = env.get("port")
     proto = env.get("protocol", "http")
-    if not host:
-        return False
+    port = env.get("port")
     if not port:
         port = 443 if proto == "https" else 80
-    if check_tcp_port(host, port, timeout=0.8):
-        return True
-    return False
+    result = {"status": "offline", "latency_ms": None, "reason": None, "http_code": None, "cert_days": None}
+    if not host:
+        result["reason"] = "nohost"
+        return result
+    ok, latency, reason = _check_tcp(host, port)
+    result["latency_ms"] = latency
+    if not ok:
+        result["reason"] = reason
+        return result
+    result["status"] = "online"
+    # 域名条目附加深度检查（轻量、容错：失败不影响在线判定）
+    if access_type == "domain":
+        url = ("https" if port == 443 else "http") + "://" + host + (env.get("path") or "/")
+        result["http_code"] = _check_http_status(url)
+        if proto == "https" or port == 443:
+            result["cert_days"] = _check_cert_days(host, 443)
+    return result
+
+def _update_env_health(data, results):
+    """维护每环境的健康档案（errordata 模块 env_health 键）：
+    last_online_at（上次在线时间）+ 最近一次探测详情，用于离线卡片展示与可用率计算。"""
+    health = data.setdefault("env_health", {})
+    now = datetime.now().isoformat()
+    for r in results:
+        h = health.setdefault(str(r["id"]), {})
+        h.update({
+            "env_id": r["id"],
+            "latency_ms": r.get("latency_ms"),
+            "reason": r.get("reason"),
+            "http_code": r.get("http_code"),
+            "cert_days": r.get("cert_days"),
+            "checked_at": now,
+        })
+        if r["status"] == "online":
+            h["last_online_at"] = now
+    return {r["id"]: health[str(r["id"])].get("last_online_at") for r in results}
 
 def _archive_inspect_history(data, envs, results):
     """T2.3 巡检历史归档：每次巡检记录一条快照，保留最近 90 天，超期清理。"""
@@ -661,7 +754,8 @@ def _archive_inspect_history(data, envs, results):
         env_details[str(r["id"])] = {
             "env_id": r["id"],
             "env_name": env_name,
-            "status": r["status"]
+            "status": r["status"],
+            "latency_ms": r.get("latency_ms")
         }
     max_id = max([h.get("id", 0) for h in history], default=0)
     history.append({
@@ -740,7 +834,11 @@ def refresh_status_cache_sync():
             return
         workers = min(len(envs), 50)
         with ThreadPoolExecutor(max_workers=workers) as executor:
-            results = list(executor.map(lambda e: {"id": e["id"], "status": "online" if check_env_reachable(e) else "offline"}, envs))
+            results = list(executor.map(lambda e: dict(probe_env(e), id=e["id"]), envs))
+        # 健康档案：延迟/原因/HTTP码/证书/上次在线时间（返回 id->last_online_at 映射）
+        last_online = _update_env_health(data, results)
+        for r in results:
+            r["last_online_at"] = last_online.get(r["id"])
         with _status_lock:
             _status_cache["env_statuses"] = results
             _status_cache["last_update"] = time.time()
@@ -886,6 +984,54 @@ async def get_status(request: Request):
 async def get_envs(request: Request):
     optional_auth(request)
     return load_data()["envs"]
+
+@app.get("/api/envs/{env_id}/health")
+async def get_env_health(env_id: int, request: Request):
+    """单环境健康详情：当前探测 + 上次在线时间 + 24h/7d 可用率 + 最近巡检样本。
+    注意：本路由需在 /api/envs/{env_id} 之前注册由 FastAPI 路径优先级保证
+    （两者均为 int 参数，无冲突；放前面可读性更好）。"""
+    optional_auth(request)
+    data = load_data()
+    env = next((e for e in data["envs"] if e["id"] == env_id), None)
+    if not env:
+        raise HTTPException(status_code=404, detail="Environment not found")
+    # 当前缓存探测结果
+    current = next((s for s in get_env_statuses() if s.get("id") == env_id), {})
+    health = data.get("env_health", {}).get(str(env_id), {})
+    # 可用率：从巡检历史统计（24h / 7d）
+    def uptime(hours):
+        cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
+        total = up = 0
+        for h in data.get("inspection_history", []):
+            if h.get("timestamp", "") < cutoff:
+                continue
+            d = h.get("env_details", {}).get(str(env_id))
+            if not d:
+                continue
+            total += 1
+            if d.get("status") == "online":
+                up += 1
+        return round(up * 100.0 / total, 1) if total else None
+    # 最近样本（最近 30 条，倒序）
+    samples = []
+    for h in reversed(data.get("inspection_history", [])[-30:]):
+        d = h.get("env_details", {}).get(str(env_id))
+        if d:
+            samples.append({"timestamp": h["timestamp"], "status": d.get("status"), "latency_ms": d.get("latency_ms")})
+    return {
+        "env_id": env_id,
+        "name": env.get("name"),
+        "status": current.get("status", health.get("status", "unknown")),
+        "latency_ms": current.get("latency_ms", health.get("latency_ms")),
+        "reason": current.get("reason", health.get("reason")),
+        "http_code": current.get("http_code", health.get("http_code")),
+        "cert_days": current.get("cert_days", health.get("cert_days")),
+        "last_online_at": health.get("last_online_at"),
+        "checked_at": health.get("checked_at"),
+        "uptime_24h": uptime(24),
+        "uptime_7d": uptime(24 * 7),
+        "samples": samples
+    }
 
 @app.get("/api/envs/{env_id}")
 async def get_env(env_id: int, request: Request):
