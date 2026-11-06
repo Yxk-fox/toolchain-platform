@@ -1939,7 +1939,7 @@
         if (confirm('确定要删除该工具吗？')) {
           apiFetch('/tools/' + toolId, { method: 'DELETE' }).then(function() {
             toast('工具已删除', 'success');
-            renderRoute('tools');
+            refreshCurrentPage();
           }).catch(function(err) {
             toast('删除失败: ' + err.message, 'error');
           });
@@ -2041,7 +2041,7 @@
         }
         toast('工具已添加', 'success');
         closeModal();
-        renderRoute('tools');
+        refreshCurrentPage();
       } catch(err) {
         toast('添加失败: ' + err.message, 'error');
         console.error('Add tool error:', err);
@@ -2101,7 +2101,7 @@
           await apiFetch('/tools/' + tool.id + '/package', { method: 'DELETE' });
           toast('安装包已删除', 'success');
           closeModal();
-          renderRoute('tools');
+          refreshCurrentPage();
         } catch(err) {
           toast('删除失败: ' + err.message, 'error');
           delPkgBtn.disabled = false;
@@ -2162,7 +2162,7 @@
         }
         toast('工具已更新', 'success');
         closeModal();
-        renderRoute('tools');
+        refreshCurrentPage();
       } catch(err) {
         toast('更新失败: ' + err.message, 'error');
         console.error('Edit tool error:', err);
@@ -3442,7 +3442,7 @@
             }).then(function(res) { return res.json(); }).then(function() {
               toast('上传成功', 'success');
               closeModal();
-              renderRoute('scripts');
+              refreshCurrentPage();
             }).catch(function() {
               toast('上传失败', 'error');
               btn.disabled = false; btn.textContent = '上传';
@@ -3453,7 +3453,7 @@
 
       var refreshBtn = $('#refreshScriptsBtn');
       if (refreshBtn) {
-        refreshBtn.addEventListener('click', function() { invalidateDataCache(); renderRoute('scripts'); });
+        refreshBtn.addEventListener('click', function() { refreshCurrentPage(); });
       }
 
       var selectAll = $('#selectAllScripts');
@@ -3501,7 +3501,7 @@
             }).then(function() {
               toast('已更新', 'success');
               closeModal();
-              renderRoute('scripts');
+              refreshCurrentPage();
             }).catch(function(err) { toast('更新失败: ' + err.message, 'error'); });
           });
         });
@@ -3513,7 +3513,7 @@
           if (confirm('确定删除该脚本吗？')) {
             apiFetch('/scripts/' + id, { method: 'DELETE' }).then(function() {
               toast('已删除', 'success');
-              renderRoute('scripts');
+              refreshCurrentPage();
             }).catch(function(err) { toast('删除失败: ' + err.message, 'error'); });
           }
         });
@@ -3643,7 +3643,7 @@
               }).then(function() {
                 toast('已更新', 'success');
                 closeModal();
-                renderRoute('programs');
+                refreshCurrentPage();
               }).catch(function(err) { toast('更新失败: ' + err.message, 'error'); });
             });
           });
@@ -3654,7 +3654,7 @@
             if (confirm('确定删除该程序吗？关联文件也会被删除。')) {
               apiFetch('/programs/' + id, { method: 'DELETE' }).then(function() {
                 toast('已删除', 'success');
-                renderRoute('programs');
+                refreshCurrentPage();
               }).catch(function(err) { toast('删除失败: ' + err.message, 'error'); });
             }
           });
@@ -3711,7 +3711,7 @@
               if (res && res.id) {
                 toast('上传成功', 'success');
                 closeModal();
-                renderRoute('programs');
+                refreshCurrentPage();
               } else {
                 toast('上传失败: ' + (res.detail || '未知错误'), 'error');
                 btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> 上传';
@@ -3724,7 +3724,7 @@
         });
       }
 
-      $('#refreshProgramsBtn').addEventListener('click', function() { renderRoute('programs'); });
+      $('#refreshProgramsBtn').addEventListener('click', function() { refreshCurrentPage(); });
 
       $('#programSearch').addEventListener('input', function() { refreshTable(); });
       $('#programCategoryFilter').addEventListener('change', function() { refreshTable(); });
@@ -3944,7 +3944,7 @@
         if (confirm('确定要删除该收藏吗？')) {
           apiFetch('/quick-entries/' + entryId, { method: 'DELETE' }).then(function() {
             toast('收藏已删除', 'success');
-            renderRoute('favorites');
+            refreshCurrentPage();
           }).catch(function(err) {
             toast('删除失败: ' + err.message, 'error');
           });
@@ -3982,7 +3982,7 @@
       apiFetch('/quick-entries', { method: 'POST', body: JSON.stringify(data) }).then(function() {
         toast('收藏已添加', 'success');
         closeModal();
-        renderRoute('favorites');
+        refreshCurrentPage();
       }).catch(function(err) {
         toast('添加失败: ' + err.message, 'error');
       });
@@ -4147,7 +4147,7 @@
   function bindUsersEvents() {
     var refreshBtn = $('#refreshUsersBtn');
     if (refreshBtn) {
-      refreshBtn.addEventListener('click', function() { renderRoute('users'); });
+      refreshBtn.addEventListener('click', function() { refreshCurrentPage(); });
     }
     var addBtn = $('#addUserBtn');
     if (addBtn) {
@@ -4200,7 +4200,7 @@
           apiFetch('/users', { method: 'POST', body: JSON.stringify(data) }).then(function() {
             toast('用户已创建', 'success');
             closeModal();
-            renderRoute('users');
+            refreshCurrentPage();
           }).catch(function(err) { toast('创建失败: ' + err.message, 'error'); });
         });
       });
@@ -4271,7 +4271,7 @@
           apiFetch('/users/' + uid, { method: 'PUT', body: JSON.stringify(data) }).then(function() {
             toast('用户已更新', 'success');
             closeModal();
-            renderRoute('users');
+            refreshCurrentPage();
           }).catch(function(err) { toast('更新失败: ' + err.message, 'error'); });
         });
       });
@@ -4282,7 +4282,7 @@
         if (confirm('确定要删除该用户吗？')) {
           apiFetch('/users/' + uid, { method: 'DELETE' }).then(function() {
             toast('用户已删除', 'success');
-            renderRoute('users');
+            refreshCurrentPage();
           }).catch(function(err) { toast('删除失败: ' + err.message, 'error'); });
         }
       });
@@ -4311,7 +4311,7 @@
           apiFetch('/users/grant', { method: 'POST', body: JSON.stringify(data) }).then(function() {
             toast('授权成功', 'success');
             closeModal();
-            renderRoute('users');
+            refreshCurrentPage();
           }).catch(function(err) { toast('授权失败: ' + err.message, 'error'); });
         });
       });
@@ -4322,7 +4322,7 @@
         if (confirm('确定要收回该授权吗？')) {
           apiFetch('/users/grants/' + idx, { method: 'DELETE' }).then(function() {
             toast('授权已收回', 'success');
-            renderRoute('users');
+            refreshCurrentPage();
           }).catch(function(err) { toast('操作失败: ' + err.message, 'error'); });
         }
       });
@@ -4551,7 +4551,7 @@
         }).then(function() {
           appState.data.envGroups = newGroups;
           toast('分组配置已保存', 'success');
-          renderRoute('settings');
+          refreshCurrentPage();
         }).catch(function(err) {
           toast('保存失败: ' + err.message, 'error');
         });
@@ -4640,7 +4640,7 @@
         }).then(function() {
           appState.data.toolboxGroups = newGroups;
           toast('工具箱分组配置已保存', 'success');
-          renderRoute('settings');
+          refreshCurrentPage();
         }).catch(function(err) {
           toast('保存失败: ' + err.message, 'error');
         });
@@ -4729,7 +4729,7 @@
         }).then(function() {
           appState.data.mineGroups = newGroups;
           toast('矿区分组配置已保存', 'success');
-          renderRoute('settings');
+          refreshCurrentPage();
         }).catch(function(err) {
           toast('保存失败: ' + err.message, 'error');
         });
@@ -4788,7 +4788,7 @@
           appState.data.menuOrder = newOrder;
           toast('菜单顺序已保存', 'success');
           renderSidebar();
-          renderRoute('settings');
+          refreshCurrentPage();
         }).catch(function(err) {
           toast('保存失败: ' + err.message, 'error');
         });
